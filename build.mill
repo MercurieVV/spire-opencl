@@ -4,6 +4,7 @@ import mill._
 import mill.scalalib._
 import mill.scalalib.publish._
 import mill.scalalib.scalafmt.ScalafmtModule
+import mill.javalib.SonatypeCentralPublishModule
 
 val scala3Version = "3.8.4"
 
@@ -14,7 +15,7 @@ val scala3Version = "3.8.4"
  * it would have computed; `CodeGen` turns that tree into an OpenCL kernel and `ClKernel` runs it.
  * The library knows nothing about what the numbers mean.
  */
-object spireOpencl extends ScalaModule with ScalafmtModule with PublishModule {
+object spireOpencl extends ScalaModule with ScalafmtModule with SonatypeCentralPublishModule {
   def scalaVersion = scala3Version
   def artifactName = "spire-opencl"
 
@@ -22,7 +23,15 @@ object spireOpencl extends ScalaModule with ScalafmtModule with PublishModule {
   def moduleDir = super.moduleDir / os.up
   def sources   = Task.Sources(moduleDir / "src" / "main" / "scala")
 
-  def publishVersion = "0.1.0-SNAPSHOT"
+  /**
+   * The git tag is the version, so a release is `git tag v0.1.0 && git push --tags` and nothing else.
+   * Anywhere but a tag build this stays a snapshot, which is also what `publishLocal` gets.
+   *
+   * Task.Input, not Task: a cached task would keep the first tag it ever saw.
+   */
+  def publishVersion = Task.Input {
+    Task.env.get("GITHUB_REF_NAME").filter(_.matches("v\\d.*")).map(_.drop(1)).getOrElse("0.1.0-SNAPSHOT")
+  }
 
   def pomSettings = PomSettings(
     description    = "Symbolic interpretation of spire/algebra typeclasses, compiled to OpenCL kernels",

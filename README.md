@@ -94,6 +94,26 @@ mill spireOpencl.runMain io.github.mercurievv.spireopencl.opencl.DeviceProbe
 Prints every platform and device, the `cl_khr_fp64` verdict, and whether a float and a double kernel
 actually build and run — the extension string and the preferred-width hint both lie on some drivers.
 
+## Releasing
+
+The git tag is the version — `publishVersion` reads `GITHUB_REF_NAME`, so:
+
+```
+git tag v0.1.0 && git push --tags
+```
+
+CI tests on every push and publishes to Maven Central on a `v*` tag. Four repository secrets are
+required (Settings → Secrets and variables → Actions):
+
+| secret | what it is |
+|---|---|
+| `SONATYPE_USERNAME` / `SONATYPE_PASSWORD` | a **user token** from [central.sonatype.com](https://central.sonatype.com) → Account → Generate User Token. Not the portal login. |
+| `PGP_SECRET_BASE64` | `gpg --export-secret-keys --armor <keyid> \| base64` — the signing key, which must also be published to a keyserver |
+| `PGP_PASSPHRASE` | that key's passphrase, if it has one |
+
+The `io.github.mercurievv` namespace has to be verified once on the portal (it proves ownership via
+the GitHub account). Locally, `./mill spireOpencl.publishLocal` needs none of this.
+
 ## Licence
 
 Apache 2.0.
