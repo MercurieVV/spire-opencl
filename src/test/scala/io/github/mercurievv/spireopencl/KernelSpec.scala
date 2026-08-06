@@ -14,6 +14,12 @@ import weaver.*
   */
 object KernelSpec extends SimpleIOSuite:
 
+  /** One test at a time. Weaver runs a suite's tests concurrently by default, and each of these builds and tears down its own OpenCL context —
+    * concurrently creating and releasing contexts segfaults the driver, on pocl reliably and on Apple's occasionally. That is a property of the
+    * drivers, not of this library, but a test suite that crashes the JVM reports nothing at all, so it is not something to leave to chance.
+    */
+  override def maxParallelism: Int = 1
+
   private val size = 128
 
   /** Something with every node kind in it: an index-derived ramp, a uniform, two parameters, a sine and a mask. */
