@@ -39,8 +39,14 @@ jobs:
       - name: Report what the device actually supports
         run: ./mill spireOpencl.runMain io.github.mercurievv.spireopencl.opencl.DeviceProbe
 
+      # POCL_KERNEL_CACHE=0: pocl caches compiled kernels in a shared directory and
+      # races with itself when two test JVMs build a program at the same time --
+      # "unable to rename temporary ... No such file or directory". Nothing to do
+      # with the emitted kernel; the cache is just shared mutable state we don't need.
       - name: Test
         run: ./mill spireOpencl.test
+        env:
+          POCL_KERNEL_CACHE: '0'
 
   publish:
     name: Publish to Maven Central
