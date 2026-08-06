@@ -27,10 +27,13 @@ jobs:
       # GitHub runners have no GPU, so the device tests need a software OpenCL
       # implementation. pocl is a CPU ICD: it reports a real platform, builds real
       # kernels and supports the fp32 + local-memory reduction this library emits.
+      # ocl-icd-opencl-dev, not ocl-icd-libopencl1: JOCL dlopen()s the unversioned
+      # "libOpenCL.so", which only the -dev package's symlink provides. The runtime
+      # package alone ships libOpenCL.so.1 and the load fails.
       - name: Install a CPU OpenCL runtime
         run: |
           sudo apt-get update
-          sudo apt-get install -y pocl-opencl-icd ocl-icd-libopencl1 clinfo
+          sudo apt-get install -y pocl-opencl-icd ocl-icd-opencl-dev clinfo
           clinfo --list
 
       - name: Report what the device actually supports
