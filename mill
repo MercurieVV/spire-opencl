@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Wrapper around the globally installed `mill` binary.
+#
+# On JDK 24+, mill's own launcher process (built against an older Scala
+# runtime) trips a `sun.misc.Unsafe::objectFieldOffset` deprecation warning
+# on every startup. The build daemon itself runs on a separate JDK (pinned
+# by mill/coursier) that predates the warning, so it's unaffected either
+# way. Point just the launcher at JDK 17 to silence it.
+JAVA_HOME="/Users/viktorskalinins/Library/Java/JavaVirtualMachines/ms-17.0.18/Contents/Home" exec mill "$@"

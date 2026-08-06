@@ -1,0 +1,8 @@
+out/
+target/
+.bsp/
+.bloop/
+.metals/
+.idea/
+*.log
+.DS_Store

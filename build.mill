@@ -1,0 +1,65 @@
+package build
+
+import mill._
+import mill.scalalib._
+import mill.scalalib.publish._
+import mill.scalalib.scalafmt.ScalafmtModule
+
+val scala3Version = "3.8.4"
+
+/**
+ * spire-opencl — spire/algebra typeclasses at a symbolic value type, compiled to OpenCL.
+ *
+ * Instantiate polymorphic numeric code at `Expr` instead of `Double` and you get the expression tree
+ * it would have computed; `CodeGen` turns that tree into an OpenCL kernel and `ClKernel` runs it.
+ * The library knows nothing about what the numbers mean.
+ */
+object spireOpencl extends ScalaModule with ScalafmtModule with PublishModule {
+  def scalaVersion = scala3Version
+  def artifactName = "spire-opencl"
+
+  // Single-module repo: sources live at the top level, not under a directory named after the module.
+  def moduleDir = super.moduleDir / os.up
+  def sources   = Task.Sources(moduleDir / "src" / "main" / "scala")
+
+  def publishVersion = "0.1.0-SNAPSHOT"
+
+  def pomSettings = PomSettings(
+    description    = "Symbolic interpretation of spire/algebra typeclasses, compiled to OpenCL kernels",
+    organization   = "io.github.mercurievv",
+    url            = "https://github.com/MercurieVV/spire-opencl",
+    licenses       = Seq(License.`Apache-2.0`),
+    versionControl = VersionControl.github("MercurieVV", "spire-opencl"),
+    developers     = Seq(Developer("MercurieVV", "Victor Mercurievv", "https://github.com/MercurieVV")),
+  )
+
+  def scalacOptions = Seq(
+    "-language:strictEquality",
+    "-Xkind-projector:underscores",
+    "-Wunused:imports",
+  )
+
+  // Same warts as skreeep2, as warnings rather than errors.
+  private val warts = Seq(
+    "Var", "MutableDataStructures", "NonUnitStatements", "Throw",
+    "Return", "AsInstanceOf", "IsInstanceOf", "Null",
+  )
+
+  def scalacPluginMvnDeps = Seq(mvn"org.wartremover:::wartremover:3.6.1")
+  def mandatoryScalacOptions =
+    super.mandatoryScalacOptions() ++ warts.map(w => s"-P:wartremover:only-warn-traverser:org.wartremover.warts.$w")
+
+  def mvnDeps = Seq(
+    mvn"org.typelevel::algebra:2.13.0",
+    mvn"org.typelevel::spire:0.18.0",
+    mvn"org.typelevel::cats-core:2.13.0",
+    mvn"org.typelevel::cats-effect:3.6.3",
+    mvn"org.jocl:jocl:2.0.5",
+  )
+
+  object test extends ScalaTests with TestModule.Weaver {
+    def moduleDir = spireOpencl.moduleDir
+    def sources   = Task.Sources(moduleDir / "src" / "test" / "scala")
+    def mvnDeps   = Seq(mvn"com.disneystreaming::weaver-cats:0.8.4")
+  }
+}
