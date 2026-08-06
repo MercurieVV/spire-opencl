@@ -23,17 +23,35 @@ object CodeGen:
     if v.isNaN || v.isInfinite then throw new IllegalArgumentException(s"non-finite constant in formula: $v")
     else f"$v%.10ef"
 
+  /** The transcendentals are all OpenCL built-ins with the same names and semantics as `java.lang.Math`, which is why the IR can carry the `Double`
+    * version of each operation as its definition and still be compiled faithfully. Only these four need special syntax.
+    */
   private def binText(op: BinOp, a: String, b: String): String = op match
     case BinOp.Add => s"$a + $b"
     case BinOp.Mul => s"$a * $b"
     case BinOp.Div => s"$a / $b"
     // OrderS masks are numbers, not booleans: they get multiplied into expressions.
-    case BinOp.Gt => s"($a > $b ? 1.0f : 0.0f)"
-    case BinOp.Lt => s"($a < $b ? 1.0f : 0.0f)"
+    case BinOp.Gt    => s"($a > $b ? 1.0f : 0.0f)"
+    case BinOp.Lt    => s"($a < $b ? 1.0f : 0.0f)"
+    case BinOp.Pow   => s"pow($a, $b)"
+    case BinOp.Atan2 => s"atan2($a, $b)"
 
   private def unText(op: UnOp, a: String): String = op match
-    case UnOp.Neg => s"-$a"
-    case UnOp.Sin => s"sin($a)"
+    case UnOp.Neg   => s"-$a"
+    case UnOp.Sin   => s"sin($a)"
+    case UnOp.Cos   => s"cos($a)"
+    case UnOp.Tan   => s"tan($a)"
+    case UnOp.Asin  => s"asin($a)"
+    case UnOp.Acos  => s"acos($a)"
+    case UnOp.Atan  => s"atan($a)"
+    case UnOp.Sinh  => s"sinh($a)"
+    case UnOp.Cosh  => s"cosh($a)"
+    case UnOp.Tanh  => s"tanh($a)"
+    case UnOp.Exp   => s"exp($a)"
+    case UnOp.Expm1 => s"expm1($a)"
+    case UnOp.Log   => s"log($a)"
+    case UnOp.Log1p => s"log1p($a)"
+    case UnOp.Sqrt  => s"sqrt($a)"
 
   private final case class Emit(names: Map[Expr, String], lines: Vector[String], next: Int)
 

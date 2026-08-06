@@ -1,13 +1,41 @@
 package io.github.mercurievv.spireopencl.symbolic
 
-/** Binary operations the IR can express. `Gt`/`Lt` are the comparison masks `OrderS` produces: they yield 1 or 0 as a number, not a boolean, because
-  * that is how a gate or an envelope uses them.
+/** Binary operations the IR can express, each carrying the arithmetic it means.
+  *
+  * The function is the single definition of the operation: constant folding, the reference interpreter and the differential tests all read it, so
+  * there is no second place for the meaning of `Div` to drift. Only the *rendering* lives in `CodeGen`.
+  *
+  * `Gt`/`Lt` are comparison **masks**: they yield 1 or 0 as a number, not a boolean, because that is what can be multiplied into an expression and
+  * what a data-parallel backend wants instead of a branch per element.
   */
-enum BinOp derives CanEqual:
-  case Add, Mul, Div, Gt, Lt
+enum BinOp(val eval: (Double, Double) => Double) derives CanEqual:
+  case Add extends BinOp(_ + _)
+  case Mul extends BinOp(_ * _)
+  case Div extends BinOp(_ / _)
+  case Gt extends BinOp((a, b) => if a > b then 1.0 else 0.0)
+  case Lt extends BinOp((a, b) => if a < b then 1.0 else 0.0)
+  case Pow extends BinOp(math.pow)
+  case Atan2 extends BinOp(math.atan2)
 
-enum UnOp derives CanEqual:
-  case Neg, Sin
+/** Unary operations, likewise carrying their arithmetic. The transcendental set is what `spire.algebra.Trig` and `NRoot` require — the point being
+  * that a caller writes ordinary spire code and this is what it turns into.
+  */
+enum UnOp(val eval: Double => Double) derives CanEqual:
+  case Neg extends UnOp(-_)
+  case Sin extends UnOp(math.sin)
+  case Cos extends UnOp(math.cos)
+  case Tan extends UnOp(math.tan)
+  case Asin extends UnOp(math.asin)
+  case Acos extends UnOp(math.acos)
+  case Atan extends UnOp(math.atan)
+  case Sinh extends UnOp(math.sinh)
+  case Cosh extends UnOp(math.cosh)
+  case Tanh extends UnOp(math.tanh)
+  case Exp extends UnOp(math.exp)
+  case Expm1 extends UnOp(math.expm1)
+  case Log extends UnOp(math.log)
+  case Log1p extends UnOp(math.log1p)
+  case Sqrt extends UnOp(math.sqrt)
 
 /** The intermediate representation: what a computation *is*, before anything decides how to run it.
   *
@@ -75,10 +103,6 @@ object Expr:
     case Un(Neg, inner) => inner
     case _              => Un(Neg, a)
 
-  def sin(a: Expr): Expr = a match
-    case Const(v) => Const(math.sin(v))
-    case _        => Un(Sin, a)
-
   def gt(l: Expr, r: Expr): Expr = (l, r) match
     case (Const(a), Const(b)) => if a > b then one else zero
     case _                    => Bin(Gt, l, r)
@@ -86,6 +110,31 @@ object Expr:
   def lt(l: Expr, r: Expr): Expr = (l, r) match
     case (Const(a), Const(b)) => if a < b then one else zero
     case _                    => Bin(Lt, l, r)
+
+  /** Any unary operation, folded when its argument is already known. The operation's own `eval` does the folding, so a new op cannot arrive with a
+    * constant-folding rule that disagrees with how it is interpreted.
+    */
+  def un(op: UnOp, a: Expr): Expr = a match
+    case Const(v) => Const(op.eval(v))
+    case _        => Un(op, a)
+
+  def bin(op: BinOp, l: Expr, r: Expr): Expr = (l, r) match
+    case (Const(a), Const(b)) => Const(op.eval(a, b))
+    case _                    => Bin(op, l, r)
+
+  def sin(a: Expr): Expr = un(Sin, a)
+  def cos(a: Expr): Expr = un(Cos, a)
+  def sqrt(a: Expr): Expr = un(Sqrt, a)
+
+  /** `x^n` for a small whole `n` is repeated multiplication, which every backend does better than a general `pow` — and it keeps the tree in the
+    * subset a code generator without `pow` could still handle.
+    */
+  def pow(base: Expr, exponent: Expr): Expr = (base, exponent) match
+    case (_, Const(1.0))                                 => base
+    case (_, Const(0.0))                                 => one
+    case (_, Const(n)) if n == n.round.toDouble && math.abs(n) <= 8.0 && n > 0 =>
+      (1 until n.toInt).foldLeft(base)((acc, _) => mul(acc, base))
+    case _ => bin(Pow, base, exponent)
 
   /** Reference interpreter. Used by tests to check the emitted kernel against the tree it came from, and as the fallback when no OpenCL device is
     * available. `env` resolves uniforms and params by name; `index` is the dimension-0 position.
@@ -96,36 +145,15 @@ object Expr:
     case Param(name)   => env(name)
     case Index         => index
     case Sum(_)        => throw new IllegalArgumentException("Sum spans the batch dimension; use evalSummed")
-    case Un(Neg, a)    => -eval(env, index)(a)
-    case Un(Sin, a)    => math.sin(eval(env, index)(a))
-    case Bin(op, l, r) =>
-      val a = eval(env, index)(l)
-      val b = eval(env, index)(r)
-      op match
-        case Add => a + b
-        case Mul => a * b
-        case Div => a / b
-        case Gt  => if a > b then 1.0 else 0.0
-        case Lt  => if a < b then 1.0 else 0.0
+    case Un(op, a)     => op.eval(eval(env, index)(a))
+    case Bin(op, l, r) => op.eval(eval(env, index)(l), eval(env, index)(r))
 
   /** Reference evaluation of a reduced formula: one env per batch element, each resolving that element's params and the shared uniforms. */
   def evalSummed(envs: Seq[String => Double], index: Double)(e: Expr): Double = e match
     case Sum(body) => envs.foldLeft(0.0)((acc, env) => acc + eval(env, index)(body))
-    case Bin(op, l, r) if containsSum(e) =>
-      val a = evalSummed(envs, index)(l)
-      val b = evalSummed(envs, index)(r)
-      op match
-        case Add => a + b
-        case Mul => a * b
-        case Div => a / b
-        case Gt  => if a > b then 1.0 else 0.0
-        case Lt  => if a < b then 1.0 else 0.0
-    case Un(op, a) if containsSum(e) =>
-      val x = evalSummed(envs, index)(a)
-      op match
-        case Neg => -x
-        case Sin => math.sin(x)
-    case other => envs.headOption.fold(0.0)(env => eval(env, index)(other))
+    case Bin(op, l, r) if containsSum(e) => op.eval(evalSummed(envs, index)(l), evalSummed(envs, index)(r))
+    case Un(op, a) if containsSum(e)     => op.eval(evalSummed(envs, index)(a))
+    case other                           => envs.headOption.fold(0.0)(env => eval(env, index)(other))
 
   private def containsSum(e: Expr): Boolean = e match
     case Sum(_)       => true

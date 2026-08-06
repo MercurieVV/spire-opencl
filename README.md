@@ -8,32 +8,71 @@ libraryDependencies += "io.github.mercurievv" %% "spire-opencl" % "0.1.0-SNAPSHO
 
 ## The idea
 
-Code written against `Field`, `ConvertableTo` and friends does not care what `V` is. Instantiate it at
-`Double` and it computes a number; instantiate it at `Expr` and it *builds the tree it would have
-computed*. That tree is an IR, and an IR can be compiled.
+Write the program in spire. Say what its arguments are. Run it on the GPU.
 
 ```scala
-import io.github.mercurievv.spireopencl.symbolic.{Expr, Reify, instances}
+import spire.algebra.{Field, Trig}
+import spire.implicits.*
+import spire.math.sin
+
+// Ordinary spire. Nothing here imports this library or knows a GPU exists.
+def program[V: {Field, Trig}](b: V, c: V, d: V): V = b * c - sin(d)
+```
+
+```scala
+import io.github.mercurievv.spireopencl.symbolic.{Reify, instances}
 import io.github.mercurievv.spireopencl.opencl.ClKernel
 import instances.given
 
-// polymorphic, knows nothing about this library:
-def ramp[V: Field](x: V, slope: V): V = x * slope
+val formula = Reify(uniforms = Nil, params = List("b", "c", "d")) { (_, arg) =>
+  program(arg("b"), arg("c"), arg("d"))     // V = Expr, so this builds the tree
+}
 
+ClKernel.compile[IO](formula, size = 1, maxBatchSize = 1).use { kernel =>
+  IO {
+    val out = new Array[Float](1)
+    kernel.renderUnsafe(Map.empty, Map("b" -> 2.5f, "c" -> 4.0f, "d" -> 0.75f), out)
+    out(0)                                  // 9.318..., same as program[Double](2.5, 4.0, 0.75)
+  }
+}
+```
+
+`program` is called exactly the same way in both instantiations. At `V = Double` it computes a number;
+at `V = Expr` the arithmetic *is* the tree, because `Field[Expr]` and `Trig[Expr]` build nodes instead
+of folding numbers. That tree is the IR, and an IR can be compiled.
+
+Reification is by **application**, not inspection: the function is applied to symbolic inputs and the
+result is kept. No macros, no free-arrow encoding, no DSL to learn.
+
+The interesting case is when the program has structure worth compiling — a thousand-term sum, a big
+polynomial, one kernel reused across a batch:
+
+```scala
 val formula = Reify(uniforms = List("dx"), params = List("slope")) { (uniform, param) =>
   ramp(Expr.mul(Expr.Index, uniform("dx")), param("slope"))
 }
 
-ClKernel.compile[IO](formula, size = 128, maxBatchSize = 4).use { kernel =>
-  IO(kernel.renderBatchUnsafe(
-    uniforms = Map("dx" -> 0.01f),
-    batch    = Seq(Map("slope" -> 1.0f), Map("slope" -> 2.0f)),
-    out      = new Array[Float](128 * 2)))
-}
+kernel.renderBatchUnsafe(
+  uniforms = Map("dx" -> 0.01f),
+  batch    = Seq(Map("slope" -> 1.0f), Map("slope" -> 2.0f)),
+  out      = new Array[Float](128 * 2))    // both slopes, one launch
 ```
 
-Reification is by **application**, not inspection: the function is applied to symbolic inputs and the
-result is kept. No macros, no free-arrow encoding.
+## What spire gives you at `Expr`
+
+| typeclass | what it buys |
+|---|---|
+| `algebra.ring.Field` | `+ - * /`, `zero`, `one` — so `b * c - d` is just spire syntax |
+| `spire.algebra.Trig` | `sin cos tan asin acos atan atan2 sinh cosh tanh exp expm1 log log1p`, `e`, `pi`, `toRadians/Degrees` |
+| `spire.algebra.NRoot` | `sqrt`, `nroot`, `fpow` — an integer exponent unrolls to multiplication rather than calling `pow` |
+| `spire.math.ConvertableTo` | numeric literals of any type enter the tree |
+| `OrderS` (this library) | `>` / `<` as **0/1 masks**, not booleans — branchless gates that multiply into an expression |
+
+Every one of those maps to an OpenCL built-in with the same semantics as `java.lang.Math`, and each
+operation carries its own `Double` implementation in the IR, so constant folding, the reference
+interpreter and the kernel cannot disagree about what `Div` means.
+
+Constants fold as you build: `program[Expr](Const(2), Const(3), Const(0))` *is* `Const(6.0)`.
 
 ## The three ways a value enters a kernel
 
@@ -77,13 +116,14 @@ From the audio synthesizer this was extracted from (M3 Max, OpenCL 1.2, 128 work
 ## Limits
 
 - **Single precision.** Apple Silicon has no `cl_khr_fp64`; a `double` kernel does not build there.
-  `DeviceProbe` reports what a given machine actually supports.
-- **Operations:** `+ - * /`, `sin`, and `>`/`<` as 0/1 masks. No loops, no branches, no per-element
-  state.
-- **No `spire.algebra.Trig[Expr]`** — it requires `exp`, `log`, `atan` and the rest. `TrigonometryCC`
-  (this library's one-function typeclass) is provided instead; a stub that threw would let code compile
-  and fail at reification rather than at the call.
-- `Expr.Sum` may not nest — there is one batch dimension.
+  `DeviceProbe` reports what a given machine actually supports. The IR itself holds `Double`; only the
+  emitted kernel narrows.
+- **Straight-line code only.** No loops, no data-dependent branches, no per-element state. A comparison
+  is a mask you multiply by, which covers conditionals but not iteration.
+- **No integer or boolean type.** Everything is a float, including the 0/1 masks.
+- `Expr.Sum` may not nest — there is one batch dimension, and it reduces once at the root.
+- Not provided: `Ring`-only or exact-arithmetic instances (`Rational`, `Algebraic`), ordering that
+  returns `Boolean`, `Bits`/integral typeclasses.
 
 ## Check your machine
 
