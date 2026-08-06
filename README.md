@@ -32,7 +32,8 @@ ClKernel.compile[IO](formula, size = 1, maxBatchSize = 1).use { kernel =>
   IO {
     val out = new Array[Float](1)
     kernel.renderUnsafe(Map.empty, Map("b" -> 2.5f, "c" -> 4.0f, "d" -> 0.75f), out)
-    out(0)                                  // 9.318..., same as program[Double](2.5, 4.0, 0.75)
+    println(out(0))                         // 9.318..., same as program[Double](2.5, 4.0, 0.75)
+    out(0)
   }
 }
 ```
@@ -133,6 +134,19 @@ mill spireOpencl.runMain io.github.mercurievv.spireopencl.opencl.DeviceProbe
 
 Prints every platform and device, the `cl_khr_fp64` verdict, and whether a float and a double kernel
 actually build and run — the extension string and the preferred-width hint both lie on some drivers.
+
+## Docs
+
+`docs/README.md` is the source of truth for the code in [The idea](#the-idea) above — its `scala mdoc`
+fences are compiled (and, where they don't need a real device, executed) against the actual library on
+every run:
+
+```
+mill docs.mdoc
+```
+
+If the API changes, this fails instead of leaving stale example code behind. Update `docs/README.md`
+and copy the checked snippets back into this file.
 
 ## Releasing
 

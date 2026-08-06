@@ -5,6 +5,7 @@ import mill.scalalib._
 import mill.scalalib.publish._
 import mill.scalalib.scalafmt.ScalafmtModule
 import mill.javalib.SonatypeCentralPublishModule
+import mill.util.Jvm
 
 val scala3Version = "3.8.4"
 
@@ -70,5 +71,45 @@ object spireOpencl extends ScalaModule with ScalafmtModule with SonatypeCentralP
     def moduleDir = spireOpencl.moduleDir
     def sources   = Task.Sources(moduleDir / "src" / "test" / "scala")
     def mvnDeps   = Seq(mvn"com.disneystreaming::weaver-cats:0.8.4")
+  }
+}
+
+/**
+ * Checks `docs/README.md` against the real API: every `scala mdoc` fence is compiled (and, unless
+ * marked `compile-only`, run) by `mdoc`. No third-party mill plugin — the existing ones target the
+ * pre-1.0 `build.sc`/`$ivy` config style and don't load under this build's module system.
+ *
+ * `moduleDeps = Seq(spireOpencl)` puts the real compiled module on the fence-compile classpath. The
+ * forced `scala3-compiler` mvnDep matters: mdoc's own published release pins an older Scala 3 LTS
+ * compiler, and without the override coursier leaves both that and this project's scala3-library on
+ * the classpath together, which dotc rejects ("package scala contains object and package with same
+ * name: caps"). Forcing the version also means mdoc checks fences with the *same* compiler this
+ * project actually builds with, so syntax new to this project's scalaVersion (e.g. `V: {Field, Trig}`
+ * multi-bounds) is understood rather than rejected as too new.
+ */
+object docs extends ScalaModule {
+  def scalaVersion = scala3Version
+  def moduleDeps   = Seq(spireOpencl)
+  def mvnDeps = Seq(
+    mvn"org.scalameta::mdoc:2.9.0",
+    mvn"org.scala-lang::scala3-compiler:$scala3Version",
+  )
+
+  def mdocSource = Task.Source(moduleDir / "README.md")
+
+  def mdoc() = Task.Command {
+    Jvm.callProcess(
+      mainClass = "mdoc.Main",
+      classPath = runClasspath().map(_.path).toSeq,
+      mainArgs = Seq(
+        "--in",
+        mdocSource().path.toString,
+        "--out",
+        (Task.dest / "README.md").toString,
+        "--classpath",
+        runClasspath().map(_.path).mkString(java.io.File.pathSeparator),
+      ),
+    )
+    PathRef(Task.dest / "README.md")
   }
 }
