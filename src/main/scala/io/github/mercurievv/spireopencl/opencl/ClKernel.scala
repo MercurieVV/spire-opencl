@@ -36,8 +36,17 @@ trait Kernel[F[_]]:
     *
     * This is the shape callers should use. A launch per element pays the driver's per-launch latency once per element, and at small sizes that
     * latency — not the arithmetic — is the whole cost.
+    *
+    * `onPhase`, if given, is called with `("upload", nanoTime)` right after the parameter buffer is enqueued, `("launch", nanoTime)` right after
+    * the kernel is enqueued, and `("readback", nanoTime)` once the (blocking) result read completes — so a caller can time where a launch's cost
+    * actually falls without this trait knowing anything about who's calling or why. Optional and free when unused: the default does nothing.
     */
-  def renderBatchUnsafe(uniforms: Map[String, Float], batch: Seq[Map[String, Float]], out: Array[Float]): Unit
+  def renderBatchUnsafe(
+    uniforms: Map[String, Float],
+    batch: Seq[Map[String, Float]],
+    out: Array[Float],
+    onPhase: (String, Long) => Unit = (_, _) => (),
+  ): Unit
 
 object ClKernel:
 
@@ -160,7 +169,12 @@ object ClKernel:
       def renderUnsafe(uniforms: Map[String, Float], params: Map[String, Float], out: Array[Float]): Unit =
         renderBatchUnsafe(uniforms, Seq(params), out)
 
-      def renderBatchUnsafe(uniforms: Map[String, Float], batch: Seq[Map[String, Float]], out: Array[Float]): Unit = {
+      def renderBatchUnsafe(
+        uniforms: Map[String, Float],
+        batch: Seq[Map[String, Float]],
+        out: Array[Float],
+        onPhase: (String, Long) => Unit = (_, _) => (),
+      ): Unit = {
         val n = batch.size
         val outputFloats = if reduced then size else size * n
         if n == 0 then java.util.Arrays.fill(out, 0.0f)
@@ -188,6 +202,7 @@ object ClKernel:
               null,
               null,
             )
+          onPhase("upload", System.nanoTime())
           clSetKernelArg(kernel, 0, Sizeof.cl_mem.toLong, Pointer.to(outBuffer))
           uniformNames.zipWithIndex.foreach { case (name, idx) =>
             val value = uniforms.getOrElse(name, throw new IllegalArgumentException(s"missing uniform '$name'; got ${uniforms.keys.toList}"))
@@ -204,6 +219,8 @@ object ClKernel:
             // Work-group = one work-item's batch, so the reduction is local to the group and needs no global sync.
             clEnqueueNDRangeKernel(queue, kernel, 2, null, Array(size.toLong, n.toLong), Array(1L, n.toLong), 0, null, null)
           else clEnqueueNDRangeKernel(queue, kernel, 2, null, Array(size.toLong, n.toLong), null, 0, null, null)
+          onPhase("launch", System.nanoTime())
           clEnqueueReadBuffer(queue, outBuffer, CL_TRUE, 0, (Sizeof.cl_float * outputFloats).toLong, Pointer.to(out), 0, null, null)
+          onPhase("readback", System.nanoTime())
         ()
       }
