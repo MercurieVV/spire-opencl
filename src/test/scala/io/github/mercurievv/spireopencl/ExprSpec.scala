@@ -1,8 +1,9 @@
 package io.github.mercurievv.spireopencl
 
 import _root_.algebra.ring.Field
-import io.github.mercurievv.spireopencl.algebra.Trigonometry
 import io.github.mercurievv.spireopencl.symbolic.{Expr, Reify, instances}
+import spire.algebra.Trig
+import spire.implicits.*
 import weaver.*
 
 /** The IR on its own: folding, sharing, and the reference interpreter that every kernel test measures against. */
@@ -69,8 +70,8 @@ object ExprSpec extends SimpleIOSuite:
   pureTest("polymorphic numeric code builds the tree it would have computed") {
     // The whole claim of the library: `shaped` knows nothing about Expr, yet instantiating it here yields the
     // expression, and instantiating it at Double yields the number that expression evaluates to.
-    def shaped[V: {Field, Trigonometry}](x: V, gain: V): V =
-      summon[Field[V]].times(x.sin, gain)
+    def shaped[V: {Field, Trig}](x: V, gain: V): V =
+      summon[Field[V]].times(spire.math.sin(x), gain)
 
     import spire.std.double.given
 

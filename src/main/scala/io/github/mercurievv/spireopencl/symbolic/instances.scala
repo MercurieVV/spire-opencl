@@ -1,7 +1,7 @@
 package io.github.mercurievv.spireopencl.symbolic
 
 import _root_.algebra.ring.Field
-import io.github.mercurievv.spireopencl.algebra.{OrderS, TrigonometryCC}
+import io.github.mercurievv.spireopencl.algebra.OrderS
 import spire.algebra.{NRoot, Trig}
 import spire.math.{Algebraic, ConvertableFrom, ConvertableTo, Rational, Real}
 
@@ -60,9 +60,6 @@ object instances:
       if n == 2 then Expr.un(UnOp.Sqrt, a) else Expr.pow(a, Expr.Const(1.0 / n.toDouble))
     override def sqrt(a: Expr): Expr = Expr.un(UnOp.Sqrt, a)
     def fpow(a: Expr, b: Expr): Expr = Expr.pow(a, b)
-
-  /** This project's own one-function trigonometry, for code that wants only `sin` and cannot supply spire's full `Trig`. */
-  given trigonometryCCExpr: TrigonometryCC[Expr] = TrigonometryCC[Expr](Expr.sin)
 
   given orderExpr: OrderS[Expr]:
     extension (a: Expr)
