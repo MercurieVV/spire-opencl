@@ -28,7 +28,7 @@ object GitPrePush:
         val buildContent = os.read(buildFile)
         val cmd = if buildContent.contains("def prePush") then Seq("mill", "prePush")
         else if buildContent.contains("object scalafix") then Seq("mill", "scalafix.test")
-        else Seq("mill", "app.test")
+        else Seq("mill", "__.test")
         os.proc(cmd).call(cwd = repoRoot, check = false).exitCode
 
       case "scala-cli" =>
