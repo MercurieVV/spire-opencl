@@ -1,10 +1,9 @@
 package io.github.mercurievv.spireopencl.symbolic.state
 
+import algebra.ring.Field
 import cats.Monad
 import cats.data.StateT
 import cats.syntax.functor.*
-
-import algebra.ring.Field
 
 /** State that survives from one launch to the next.
   *

@@ -244,7 +244,13 @@ object KernelSpec extends SimpleIOSuite:
   private val counterViaVar: Formula =
     val advance: Var[Id, Expr, Expr] = StateT(prev => (Expr.add(prev, Expr.Param("step")), prev))
     val (nextStore, output) = advance.at[Store[Expr]](0).run(Map(0 -> Expr.State("count")))
-    Formula(output, uniforms = Nil, params = List("step"), states = List("count"), updates = Map("count" -> nextStore(0)))
+    Formula(
+      output,
+      uniforms = Nil,
+      params   = List("step"),
+      states   = List("count"),
+      updates  = Map("count" -> nextStore(0)),
+    )
 
   test("a cell built through Var.at — not written out by hand — can be set, modified, and got back on the device") {
     ClKernel.compile[IO](counterViaVar, size, steps.size).use { kernel =>

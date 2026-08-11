@@ -1,3 +1,4 @@
+//| mvnDeps: ["com.goyeau::mill-scalafix_mill1:0.6.0"]
 package build
 
 import mill._
@@ -6,6 +7,7 @@ import mill.scalalib.publish._
 import mill.scalalib.scalafmt.ScalafmtModule
 import mill.javalib.SonatypeCentralPublishModule
 import mill.util.Jvm
+import com.goyeau.mill.scalafix.ScalafixModule
 
 val scala3Version = "3.8.4"
 
@@ -16,7 +18,7 @@ val scala3Version = "3.8.4"
  * it would have computed; `CodeGen` turns that tree into an OpenCL kernel and `ClKernel` runs it.
  * The library knows nothing about what the numbers mean.
  */
-object spireOpencl extends ScalaModule with ScalafmtModule with SonatypeCentralPublishModule {
+object spireOpencl extends ScalaModule with ScalafmtModule with ScalafixModule with SonatypeCentralPublishModule {
   def scalaVersion = scala3Version
   def artifactName = "spire-opencl"
 

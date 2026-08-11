@@ -1,7 +1,6 @@
 package io.github.mercurievv.spireopencl.opencl
 
 import cats.effect.{Resource, Sync}
-
 import io.github.mercurievv.spireopencl.symbolic.Formula
 import org.jocl.*
 import org.jocl.CL.*

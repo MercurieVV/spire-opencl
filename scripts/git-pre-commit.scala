@@ -87,15 +87,19 @@ object GitPreCommit:
                 0
           else 0
         case "mill" =>
+          // `__.fix` is mill-scalafix's own task (com.goyeau.mill.scalafix.ScalafixModule), reached through the
+          // `__` wildcard selector so this hook needs no per-repo module name. A repo with no ScalafixModule
+          // mixed into any module makes `fix` unresolvable across the board, which is Mill's ordinary "nothing
+          // here" outcome, not a broken build.
           val res = os
-            .proc("mill", "mill.scalalib.contrib.ScalafixModule/fix", "--check")
+            .proc("mill", "__.fix", "--check")
             .call(cwd = repoRoot, check = false, stdout = os.Pipe, stderr = os.Pipe)
           if res.exitCode != 0 then
             val errText = res.err.text()
             val outText = res.out.text()
             val cleanErr = errText.replaceAll("\u001b\\[[;\\d]*m", "")
             val cleanOut = outText.replaceAll("\u001b\\[[;\\d]*m", "")
-            if cleanErr.contains("Cannot resolve external module") || cleanOut.contains("Cannot resolve external module") then
+            if cleanErr.contains("Cannot resolve") || cleanOut.contains("Cannot resolve") then
               println("✓ Scalafix is not configured in Mill. Skipping Scalafix check.")
               0
             else
