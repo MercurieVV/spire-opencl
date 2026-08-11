@@ -1,10 +1,15 @@
 package io.github.mercurievv.spireopencl
 
+import cats.Id
+import cats.data.StateT
 import cats.effect.IO
 
 import io.github.mercurievv.spireopencl.opencl.ClKernel
-import io.github.mercurievv.spireopencl.symbolic.{Expr, Formula, Reify}
+import io.github.mercurievv.spireopencl.symbolic.{Expr, Formula, Reify, instances}
+import io.github.mercurievv.spireopencl.symbolic.state.{Store, Var, at}
 import weaver.*
+
+import instances.given
 
 /** The compiled kernel against the reference interpreter.
   *
@@ -227,6 +232,43 @@ object KernelSpec extends SimpleIOSuite:
         expect(
           modified.toList == List(101.0f, 210.0f),
           s"launch's write did not land on top of the seeded value, got ${modified.toList}",
+        )
+      }
+    }
+  }
+
+  /** The same `counter` formula, but its body and update come out of the `Var`/`Store`/`At` layer ([[VarSpec]]'s last test) instead of being written
+    * out by hand — a cell's step zoomed to id 0 in a `Store[Expr]`, seeded with the read placeholder `Expr.State("count")` rather than a real value,
+    * since composing the tree happens before there is any value to seed with.
+    */
+  private val counterViaVar: Formula =
+    val advance: Var[Id, Expr, Expr] = StateT(prev => (Expr.add(prev, Expr.Param("step")), prev))
+    val (nextStore, output) = advance.at[Store[Expr]](0).run(Map(0 -> Expr.State("count")))
+    Formula(output, uniforms = Nil, params = List("step"), states = List("count"), updates = Map("count" -> nextStore(0)))
+
+  test("a cell built through Var.at — not written out by hand — can be set, modified, and got back on the device") {
+    ClKernel.compile[IO](counterViaVar, size, steps.size).use { kernel =>
+      IO {
+        kernel.writeStateUnsafe(Array(100.0f, 200.0f))
+        val seeded = new Array[Float](steps.size)
+        kernel.readStateUnsafe(seeded)
+
+        val out = new Array[Float](size * steps.size)
+        kernel.renderBatchUnsafe(Map.empty, steps, out)
+        val modified = new Array[Float](steps.size)
+        kernel.readStateUnsafe(modified)
+
+        expect(
+          seeded.toList == List(100.0f, 200.0f),
+          s"the Var-built formula did not read back what was set, got ${seeded.toList}",
+        ) &&
+        expect(
+          out(0) == 100.0f && out(size) == 200.0f,
+          s"the launch did not read the seeded value through Var.at's zoom, got (${out(0)}, ${out(size)})",
+        ) &&
+        expect(
+          modified.toList == List(101.0f, 210.0f),
+          s"Var.at's update did not land on the device, got ${modified.toList}",
         )
       }
     }
