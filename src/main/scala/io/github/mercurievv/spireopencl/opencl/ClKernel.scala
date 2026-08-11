@@ -53,6 +53,11 @@ trait Kernel[F[_]]:
     */
   def readStateUnsafe(out: Array[Float]): Unit
 
+  /** Seeds the persistent cells the next launch will read, same element-major layout as [[readStateUnsafe]]. For tests: lets a case start a cell
+    * somewhere other than zero without a launch to get it there.
+    */
+  def writeStateUnsafe(in: Array[Float]): Unit
+
 object ClKernel:
 
   final case class Device(platform: cl_platform_id, device: cl_device_id, name: String)
@@ -226,6 +231,22 @@ object ClKernel:
             0,
             (Sizeof.cl_float * floats).toLong,
             Pointer.to(out),
+            0,
+            null,
+            null,
+          )
+        ()
+
+      def writeStateUnsafe(in: Array[Float]): Unit =
+        if stateNames.nonEmpty then
+          val floats = math.min(in.length, stateNames.size * maxBatchSize)
+          clEnqueueWriteBuffer(
+            queue,
+            stateBuffers(readSide.get),
+            CL_TRUE,
+            0,
+            (Sizeof.cl_float * floats).toLong,
+            Pointer.to(in),
             0,
             null,
             null,

@@ -204,6 +204,34 @@ object KernelSpec extends SimpleIOSuite:
     }
   }
 
+  test("a cell on the device can be set, modified, and got back directly — no inference from output") {
+    ClKernel.compile[IO](counter, size, steps.size).use { kernel =>
+      IO {
+        kernel.writeStateUnsafe(Array(100.0f, 200.0f))
+        val seeded = new Array[Float](steps.size)
+        kernel.readStateUnsafe(seeded)
+
+        val out = new Array[Float](size * steps.size)
+        kernel.renderBatchUnsafe(Map.empty, steps, out)
+        val modified = new Array[Float](steps.size)
+        kernel.readStateUnsafe(modified)
+
+        expect(
+          seeded.toList == List(100.0f, 200.0f),
+          s"set did not stick before any launch, got ${seeded.toList}",
+        ) &&
+        expect(
+          out(0) == 100.0f && out(size) == 200.0f,
+          s"launch did not read the seeded value, got (${out(0)}, ${out(size)})",
+        ) &&
+        expect(
+          modified.toList == List(101.0f, 210.0f),
+          s"launch's write did not land on top of the seeded value, got ${modified.toList}",
+        )
+      }
+    }
+  }
+
   test("state works under the reduction too, where the cell is read before the barrier") {
     ClKernel.compile[IO](counter.summed, size, steps.size).use { kernel =>
       IO {
