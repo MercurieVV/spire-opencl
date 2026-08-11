@@ -148,6 +148,10 @@ mill docs.mdoc
 If the API changes, this fails instead of leaving stale example code behind. Update `docs/README.md`
 and copy the checked snippets back into this file.
 
+See [docs/var-operations.md](docs/var-operations.md) for a second walkthrough — more `Field`/`Trig`/
+`NRoot` operations at once, plus a `Var`/`.at`-built stateful cell compiled and actually launched on
+this machine's OpenCL device.
+
 ## Releasing
 
 The git tag is the version — `publishVersion` reads `GITHUB_REF_NAME`, so:
