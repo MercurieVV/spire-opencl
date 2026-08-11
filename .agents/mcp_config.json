@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "scala-semantic": {
+      "command": "/Users/viktorskalinins/.local/bin/scalasemantic-mcp",
+      "args": [
+        "/Users/viktorskalinins/IdeaProjects/spire-opencl"
+      ]
+    }
+  }
+}
