@@ -26,10 +26,19 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      # var-operations.md's device fence isn't compile-only — it launches a kernel for real, same as
+      # the test suite in ci.yml, so this runner needs the same CPU OpenCL ICD (pocl) to build docs.
+      - name: Install a CPU OpenCL runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pocl-opencl-icd ocl-icd-opencl-dev
+
       # docs.mdoc runs every fence against the real library; its output is what gets published, so
       # a build failure here means the published site would have shown wrong or stale code.
       - name: Build docs (mdoc)
         run: ./mill docs.mdoc
+        env:
+          POCL_KERNEL_CACHE: '0'
 
       - uses: actions/configure-pages@v5
 
