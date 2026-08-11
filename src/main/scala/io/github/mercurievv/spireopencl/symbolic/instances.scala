@@ -1,7 +1,7 @@
 package io.github.mercurievv.spireopencl.symbolic
 
 import _root_.algebra.ring.Field
-import io.github.mercurievv.spireopencl.algebra.OrderS
+import io.github.mercurievv.spireopencl.algebra.{Modulo, OrderS}
 import spire.algebra.{NRoot, Trig}
 import spire.math.{Algebraic, ConvertableFrom, ConvertableTo, Rational, Real}
 
@@ -67,6 +67,8 @@ object instances:
     extension (a: Expr)
       def greaterThan(a2: Expr): Expr = Expr.gt(a, a2)
       infix def <<(a2: Expr): Expr = Expr.lt(a, a2)
+
+  given moduloExpr: Modulo[Expr] = Expr.rem(_, _)
 
   /** Numeric literals enter the tree here. The exact-arithmetic conversions have no meaning for a float kernel, but they cost nothing to support at
     * `Double` precision, and refusing them would reject ordinary code for no gain.

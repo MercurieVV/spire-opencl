@@ -1,6 +1,7 @@
 package io.github.mercurievv.spireopencl
 
 import _root_.algebra.ring.Field
+import io.github.mercurievv.spireopencl.algebra.Modulo
 import io.github.mercurievv.spireopencl.symbolic.{Expr, Reify, instances}
 import spire.algebra.Trig
 import spire.implicits.*
@@ -100,6 +101,13 @@ object ExprSpec extends SimpleIOSuite:
     }
     expect(Expr.names(formula.body) == List("gain")) &&
     expect(formula.params == List("slope", "gain"))
+  }
+
+  pureTest("Modulo[Expr] builds an fmod node, and it agrees with Modulo[Double] on a value") {
+    val wrapped = Modulo[Expr].mod(Expr.Param("phase"), Expr.Uniform("twoPi"))
+    val env = Map("phase" -> 7.5, "twoPi" -> math.Pi * 2)
+    expect(wrapped == Expr.rem(Expr.Param("phase"), Expr.Uniform("twoPi"))) &&
+    expect(Expr.eval(env, index = 0.0)(wrapped) == Modulo[Double].mod(7.5, math.Pi * 2))
   }
 
   pureTest("summed is idempotent and scaledBy lands above the reduction") {
