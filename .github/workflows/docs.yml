@@ -1,0 +1,53 @@
+name: Docs
+
+on:
+  push:
+    branches: [master]
+    paths: ['docs/**', 'build.mill', '.github/workflows/docs.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # docs.mdoc runs every fence against the real library; its output is what gets published, so
+      # a build failure here means the published site would have shown wrong or stale code.
+      - name: Build docs (mdoc)
+        run: ./mill docs.mdoc
+
+      - uses: actions/configure-pages@v5
+
+      # mdoc's output is plain markdown; Jekyll (GitHub's default Pages processor) turns it into a themed
+      # site and builds the nav from index.md/README.md links, so nothing else needs converting to HTML.
+      - uses: actions/jekyll-build-pages@v1
+        with:
+          source: out/docs/mdoc.dest
+          destination: _site
+
+      - uses: actions/upload-pages-artifact@v3
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
