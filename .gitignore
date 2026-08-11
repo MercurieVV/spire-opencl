@@ -6,3 +6,4 @@ target/
 .idea/
 *.log
 .DS_Store
+.scala-build/
