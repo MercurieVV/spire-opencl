@@ -97,7 +97,8 @@ object docs extends ScalaModule {
     mvn"org.scala-lang::scala3-compiler:$scala3Version",
   )
 
-  def mdocSource = Task.Source(moduleDir / "README.md")
+  // Directory mode: every `.md` under here is checked (`README.md` plus any further pages, e.g. `var-operations.md`).
+  def mdocSource = Task.Source(moduleDir)
 
   def mdoc() = Task.Command {
     Jvm.callProcess(
@@ -107,11 +108,11 @@ object docs extends ScalaModule {
         "--in",
         mdocSource().path.toString,
         "--out",
-        (Task.dest / "README.md").toString,
+        Task.dest.toString,
         "--classpath",
         runClasspath().map(_.path).mkString(java.io.File.pathSeparator),
       ),
     )
-    PathRef(Task.dest / "README.md")
+    PathRef(Task.dest)
   }
 }
