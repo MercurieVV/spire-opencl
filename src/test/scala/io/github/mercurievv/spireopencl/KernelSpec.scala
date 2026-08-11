@@ -152,6 +152,63 @@ object KernelSpec extends SimpleIOSuite:
     }
   }
 
+  /** Reads its own cell and advances it by a per-element step, so a launch's output *is* what the previous launch left. */
+  private val counter =
+    Reify.stateful(Nil, List("step"), List("count"))((_, p, s) => (s("count"), Map("count" -> Expr.add(s("count"), p("step")))))
+
+  private val steps = Seq(Map("step" -> 1.0f), Map("step" -> 10.0f))
+
+  test("a cell survives to the next launch, and each batch element keeps its own") {
+    ClKernel.compile[IO](counter, size, steps.size).use { kernel =>
+      IO {
+        val out = new Array[Float](size * steps.size)
+        def launch(): (Float, Float) =
+          kernel.renderBatchUnsafe(Map.empty, steps, out)
+          (out(0), out(size))
+
+        val first = launch()
+        val second = launch()
+        val third = launch()
+        val cells = new Array[Float](steps.size)
+        kernel.readStateUnsafe(cells)
+        expect(first == ((0.0f, 0.0f)), s"cells start zeroed, got $first") &&
+        expect(second == ((1.0f, 10.0f)), s"one launch's update, got $second") &&
+        expect(third == ((2.0f, 20.0f)), s"updates accumulate, got $third") &&
+        expect(cells.toList == List(3.0f, 30.0f), s"the write-back ran once more than was read back, got ${cells.toList}") &&
+        // The cell is read by every work-item in dimension 0, not only the one that writes it back.
+        expect((0 until size).forall(i => out(i) == 2.0f), "some work-items read a different value than others")
+      }
+    }
+  }
+
+  test("state works under the reduction too, where the cell is read before the barrier") {
+    ClKernel.compile[IO](counter.summed, size, steps.size).use { kernel =>
+      IO {
+        val out = new Array[Float](size)
+        def launch(): Float =
+          kernel.renderBatchUnsafe(Map.empty, steps, out)
+          out(0)
+
+        val first = launch()
+        val second = launch()
+        expect(first == 0.0f, s"got $first") && expect(second == 11.0f, s"both elements advanced, got $second")
+      }
+    }
+  }
+
+  test("a shrinking batch does not disturb the cells of the elements that remain") {
+    ClKernel.compile[IO](counter, size, steps.size).use { kernel =>
+      IO {
+        val out = new Array[Float](size * steps.size)
+        kernel.renderBatchUnsafe(Map.empty, steps, out)
+        kernel.renderBatchUnsafe(Map.empty, steps.take(1), out)
+        kernel.renderBatchUnsafe(Map.empty, steps, out)
+        // Element 0 advanced through all three launches; element 1's slot was untouched by the short one.
+        expect(out(0) == 2.0f, s"element 0 got ${out(0)}") && expect(out(size) == 10.0f, s"element 1 got ${out(size)}")
+      }
+    }
+  }
+
   test("a formula the driver cannot build reports the build log, not just a status code") {
     // Nothing in the IR can produce bad C, so this goes in through the one door that bypasses it: a
     // hand-made Formula whose emitted source is invalid.

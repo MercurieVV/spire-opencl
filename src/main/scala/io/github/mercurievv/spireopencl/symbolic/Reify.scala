@@ -8,11 +8,21 @@ package io.github.mercurievv.spireopencl.symbolic
   *
   *   - `uniforms` — one value per launch, shared by every work-item; passed as scalar kernel arguments.
   *   - `params` — one value per batch element; packed into a single buffer, element-major.
+  *   - `states` — one value per batch element that survives to the next launch, with `updates` giving each cell's new value.
   */
 final case class Formula(
   body: Expr,
   uniforms: List[String],
-  params: List[String]) derives CanEqual:
+  params: List[String],
+  states: List[String] = Nil,
+  updates: Map[String, Expr] = Map.empty) derives CanEqual:
+  require(
+    updates.keySet == states.toSet,
+    s"every state needs exactly one update; declared ${states.sorted}, updated ${updates.keys.toList.sorted}")
+  updates.foreach: (name, update) =>
+    require(!Expr.containsIndex(update), s"state update '$name' depends on Index; there is no single work-item at which to take it")
+    require(!Expr.containsSum(update), s"state update '$name' contains a Sum; state is per batch element, reduction spans them")
+
   def nodeCount: Int = Expr.nodeCount(body)
 
   /** The reduced part of this formula, if it has one. Everything above it in the tree operates on the finished sum. */
@@ -47,7 +57,22 @@ object Reify:
     * counts.
     */
   def apply(uniforms: List[String], params: List[String])(build: (String => Expr, String => Expr) => Expr): Formula =
-    def lookup(kind: String, declared: List[String], node: String => Expr): String => Expr =
-      val table = declared.map(n => n -> node(n)).toMap
-      name => table.getOrElse(name, throw new IllegalArgumentException(s"undeclared $kind '$name'; declared: $declared"))
     Formula(build(lookup("uniform", uniforms, Expr.Uniform.apply), lookup("param", params, Expr.Param.apply)), uniforms, params)
+
+  /** As `apply`, with cells that persist between launches.
+    *
+    * `build` receives a third lookup for reading them and returns, alongside the body, the new value of every declared cell. Updates are returned
+    * rather than written because there is nothing to write to: the tree is a value, and a cell's new value is simply another expression over the same
+    * inputs — including its own previous value.
+    */
+  def stateful(uniforms: List[String], params: List[String], states: List[String])(
+    build: (String => Expr, String => Expr, String => Expr) => (Expr, Map[String, Expr])): Formula =
+    val (body, updates) = build(
+      lookup("uniform", uniforms, Expr.Uniform.apply),
+      lookup("param", params, Expr.Param.apply),
+      lookup("state", states, Expr.State.apply))
+    Formula(body, uniforms, params, states, updates)
+
+  private def lookup(kind: String, declared: List[String], node: String => Expr): String => Expr =
+    val table = declared.map(n => n -> node(n)).toMap
+    name => table.getOrElse(name, throw new IllegalArgumentException(s"undeclared $kind '$name'; declared: $declared"))

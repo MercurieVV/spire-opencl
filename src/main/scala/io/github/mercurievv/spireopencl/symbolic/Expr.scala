@@ -16,6 +16,10 @@ enum BinOp(val eval: (Double, Double) => Double) derives CanEqual:
   case Lt extends BinOp((a, b) => if a < b then 1.0 else 0.0)
   case Pow extends BinOp(math.pow)
   case Atan2 extends BinOp(math.atan2)
+  /** Remainder, with the sign of the dividend — `fmod`, not a floored modulus. The operation a periodic accumulator needs: a value that grows
+    * without bound loses absolute precision as it grows, and in single precision it does so fast enough to matter.
+    */
+  case Rem extends BinOp((a, b) => a % b)
 
 /** Unary operations, likewise carrying their arithmetic. The transcendental set is what `spire.algebra.Trig` and `NRoot` require — the point being
   * that a caller writes ordinary spire code and this is what it turns into.
@@ -49,6 +53,7 @@ enum UnOp(val eval: Double => Double) derives CanEqual:
   *   - `Param` — one scalar per **batch element** (dimension 1), read from the packed parameter buffer.
   *   - `Index` — the dimension-0 work-item index, as a float. Everything that varies *within* a launch is derived from this, in the IR, by the
   *     caller — the library has no notion of what dimension 0 counts.
+  *   - `State` — one scalar per batch element that *persists between launches*, read at the start of a launch and rewritten at the end.
   */
 enum Expr derives CanEqual:
   case Const(v: Double)
@@ -57,6 +62,14 @@ enum Expr derives CanEqual:
   case Index
   case Bin(op: BinOp, l: Expr, r: Expr)
   case Un(op: UnOp, a: Expr)
+
+  /** A value carried from one launch to the next, per batch element.
+    *
+    * Reads are ordinary: every work-item sees the value the previous launch left. The *write* is what makes it state, and it lives in
+    * `Formula.updates` rather than in the tree, because one expression per named cell is evaluated once per launch — not once per work-item. That
+    * asymmetry is the whole contract: a state cell's update may not depend on `Index`, since there is no single index at which it would be taken.
+    */
+  case State(name: String)
 
   /** Sum of `body` over the batch dimension — a reduction, as an IR node.
     *
@@ -122,6 +135,11 @@ object Expr:
     case (Const(a), Const(b)) => Const(op.eval(a, b))
     case _                    => Bin(op, l, r)
 
+  /** `x mod m`, folded when both are known. Kept as a smart constructor because a zero dividend is exactly what a fresh accumulator holds. */
+  def rem(x: Expr, m: Expr): Expr = (x, m) match
+    case (Const(a), _) if a == 0.0 => zero
+    case _                         => bin(Rem, x, m)
+
   def sin(a: Expr): Expr = un(Sin, a)
   def cos(a: Expr): Expr = un(Cos, a)
   def sqrt(a: Expr): Expr = un(Sqrt, a)
@@ -143,6 +161,7 @@ object Expr:
     case Const(v)      => v
     case Uniform(name) => env(name)
     case Param(name)   => env(name)
+    case State(name)   => env(name)
     case Index         => index
     case Sum(_)        => throw new IllegalArgumentException("Sum spans the batch dimension; use evalSummed")
     case Un(op, a)     => op.eval(eval(env, index)(a))
@@ -155,10 +174,18 @@ object Expr:
     case Un(op, a) if containsSum(e)     => op.eval(evalSummed(envs, index)(a))
     case other                           => envs.headOption.fold(0.0)(env => eval(env, index)(other))
 
-  private def containsSum(e: Expr): Boolean = e match
+  def containsSum(e: Expr): Boolean = e match
     case Sum(_)       => true
     case Bin(_, l, r) => containsSum(l) || containsSum(r)
     case Un(_, a)     => containsSum(a)
+    case _            => false
+
+  /** Whether the tree varies within a launch. A state update that does would have no single value to write back, so `Reify` rejects it. */
+  def containsIndex(e: Expr): Boolean = e match
+    case Index        => true
+    case Bin(_, l, r) => containsIndex(l) || containsIndex(r)
+    case Un(_, a)     => containsIndex(a)
+    case Sum(a)       => containsIndex(a)
     case _            => false
 
   /** Distinct nodes in the DAG — what the kernel actually costs after common-subexpression elimination. */
@@ -179,6 +206,7 @@ object Expr:
     def go(e: Expr, acc: List[String]): List[String] = e match
       case Uniform(n)   => if acc.contains(n) then acc else acc :+ n
       case Param(n)     => if acc.contains(n) then acc else acc :+ n
+      case State(n)     => if acc.contains(n) then acc else acc :+ n
       case Bin(_, l, r) => go(r, go(l, acc))
       case Un(_, a)     => go(a, acc)
       case Sum(a)       => go(a, acc)

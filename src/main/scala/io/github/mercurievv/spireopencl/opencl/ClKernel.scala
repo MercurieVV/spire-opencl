@@ -48,6 +48,11 @@ trait Kernel[F[_]]:
     onPhase: (String, Long) => Unit = (_, _) => (),
   ): Unit
 
+  /** The persistent cells as the last launch left them, element-major: element `e`'s cells occupy `out[e * states .. e * states + states)`, in declared
+    * order. For tests and diagnosis — the audio path never reads state back, which is the point of keeping it on the device.
+    */
+  def readStateUnsafe(out: Array[Float]): Unit
+
 object ClKernel:
 
   final case class Device(platform: cl_platform_id, device: cl_device_id, name: String)
@@ -112,6 +117,7 @@ object ClKernel:
     val src = CodeGen(formula)
     val elementParams = formula.params
     val uniformNames = formula.uniforms
+    val stateNames = formula.states
 
     def acquire[A](f: => A)(release: A => Unit): Resource[F, A] =
       Resource.make(Sync[F].delay(f))(a => Sync[F].delay(release(a)))
@@ -149,6 +155,15 @@ object ClKernel:
       paramBuffer <- acquire(
         clCreateBuffer(context, CL_MEM_READ_ONLY, math.max(1, Sizeof.cl_float * elementParams.size * maxBatchSize).toLong, null, null),
       )(clReleaseMemObject)
+      /* Two of them, swapped after every launch, because a launch reads state in every dimension-0 work-group and
+       * writes it in one: reads and the write live in different work-groups, OpenCL 1.2 has no barrier across them,
+       * and writing in place would therefore be a race. The pair costs one allocation at compile and a pointer swap
+       * per launch — nothing per chunk. Zeroed at acquire so a formula's first launch sees a defined value. */
+      stateBuffers <- acquire {
+        val floats = math.max(1, stateNames.size * maxBatchSize)
+        val zeros = Pointer.to(new Array[Float](floats))
+        Array.fill(2)(clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, (Sizeof.cl_float * floats).toLong, zeros, null))
+      }(_.foreach(clReleaseMemObject))
     yield new Kernel[F]:
       val source: String = src
       val maxBatch: Int = maxBatchSize
@@ -162,6 +177,15 @@ object ClKernel:
           .allocateDirect(math.max(1, Sizeof.cl_float * elementParams.size * maxBatchSize))
           .order(java.nio.ByteOrder.nativeOrder)
           .asFloatBuffer
+
+      /** Which of the pair the next launch reads. The other is the one it writes. */
+      private val readSide = new java.util.concurrent.atomic.AtomicInteger(0)
+
+      def readStateUnsafe(out: Array[Float]): Unit =
+        if stateNames.nonEmpty then
+          val floats = math.min(out.length, stateNames.size * maxBatchSize)
+          clEnqueueReadBuffer(queue, stateBuffers(readSide.get), CL_TRUE, 0, (Sizeof.cl_float * floats).toLong, Pointer.to(out), 0, null, null)
+        ()
 
       def render(uniforms: Map[String, Float], params: Map[String, Float], out: Array[Float]): F[Unit] =
         Sync[F].delay(renderUnsafe(uniforms, params, out))
@@ -203,22 +227,48 @@ object ClKernel:
               null,
             )
           onPhase("upload", System.nanoTime())
-          clSetKernelArg(kernel, 0, Sizeof.cl_mem.toLong, Pointer.to(outBuffer))
-          uniformNames.zipWithIndex.foreach { case (name, idx) =>
+          /* Bound in the order CodeGen declares them, by a running counter rather than by arithmetic over which
+           * optional arguments are present: each optional argument used to shift the index of every later one. */
+          val argIdx = new java.util.concurrent.atomic.AtomicInteger(0)
+          def bind(size: Long, value: Pointer): Unit = clSetKernelArg(kernel, argIdx.getAndIncrement(), size, value)
+
+          bind(Sizeof.cl_mem.toLong, Pointer.to(outBuffer))
+          uniformNames.foreach { name =>
             val value = uniforms.getOrElse(name, throw new IllegalArgumentException(s"missing uniform '$name'; got ${uniforms.keys.toList}"))
-            clSetKernelArg(kernel, idx + 1, Sizeof.cl_float.toLong, Pointer.to(Array(value)))
+            bind(Sizeof.cl_float.toLong, Pointer.to(Array(value)))
           }
           // A reduced kernel loops over the batch itself, so the count is an argument rather than an NDRange dimension.
-          val afterUniforms = uniformNames.size + 1
-          if reduced then clSetKernelArg(kernel, afterUniforms, Sizeof.cl_int.toLong, Pointer.to(Array(n)))
-          val paramArg = afterUniforms + (if reduced then 1 else 0)
-          if elementParams.nonEmpty then clSetKernelArg(kernel, paramArg, Sizeof.cl_mem.toLong, Pointer.to(paramBuffer))
+          if reduced then bind(Sizeof.cl_int.toLong, Pointer.to(Array(n)))
+          if elementParams.nonEmpty then bind(Sizeof.cl_mem.toLong, Pointer.to(paramBuffer))
+          val writeSide = 1 - readSide.get
+          if stateNames.nonEmpty then
+            /* Elements past this launch's batch are not written by the kernel, and the buffer it writes into holds
+             * what it held two launches ago — so their cells would silently rewind. Carry them across instead. Free
+             * for a caller that always sends a full batch, which is the shape that keeps a slot bound to an element
+             * in the first place. */
+            if n < maxBatchSize then
+              val offset = (Sizeof.cl_float * stateNames.size * n).toLong
+              clEnqueueCopyBuffer(
+                queue,
+                stateBuffers(readSide.get),
+                stateBuffers(writeSide),
+                offset,
+                offset,
+                (Sizeof.cl_float * stateNames.size * (maxBatchSize - n)).toLong,
+                0,
+                null,
+                null,
+              )
+            bind(Sizeof.cl_mem.toLong, Pointer.to(stateBuffers(readSide.get)))
+            bind(Sizeof.cl_mem.toLong, Pointer.to(stateBuffers(writeSide)))
           if reduced then
             // A null pointer with a size allocates work-group-local memory: one float per element for the reduction.
-            clSetKernelArg(kernel, paramArg + (if elementParams.isEmpty then 0 else 1), (Sizeof.cl_float * n).toLong, null)
+            bind((Sizeof.cl_float * n).toLong, null)
             // Work-group = one work-item's batch, so the reduction is local to the group and needs no global sync.
             clEnqueueNDRangeKernel(queue, kernel, 2, null, Array(size.toLong, n.toLong), Array(1L, n.toLong), 0, null, null)
           else clEnqueueNDRangeKernel(queue, kernel, 2, null, Array(size.toLong, n.toLong), null, 0, null, null)
+          // The side just written becomes the side the next launch reads.
+          if stateNames.nonEmpty then readSide.set(writeSide)
           onPhase("launch", System.nanoTime())
           clEnqueueReadBuffer(queue, outBuffer, CL_TRUE, 0, (Sizeof.cl_float * outputFloats).toLong, Pointer.to(out), 0, null, null)
           onPhase("readback", System.nanoTime())

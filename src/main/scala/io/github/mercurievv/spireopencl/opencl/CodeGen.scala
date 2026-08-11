@@ -16,7 +16,7 @@ object CodeGen:
   val kernelName = "compute"
 
   /** Names the emitted kernel uses for itself. A declared argument may not collide with one. */
-  private val reserved = Set("i", "fi", "e", "n", "ne", "out", "params", "acc", "mix", kernelName)
+  private val reserved = Set("i", "fi", "e", "n", "ne", "k", "out", "params", "stateIn", "stateOut", "acc", "mix", kernelName)
 
   /** Deterministic C float literal. `toString` would emit `1.0E-4`, which is legal C, but fixed formatting keeps generated sources diffable. */
   private def literal(v: Double): String =
@@ -34,6 +34,7 @@ object CodeGen:
     case BinOp.Gt    => s"($a > $b ? 1.0f : 0.0f)"
     case BinOp.Lt    => s"($a < $b ? 1.0f : 0.0f)"
     case BinOp.Pow   => s"pow($a, $b)"
+    case BinOp.Rem   => s"fmod($a, $b)"
     case BinOp.Atan2 => s"atan2($a, $b)"
 
   private def unText(op: UnOp, a: String): String = op match
@@ -55,13 +56,17 @@ object CodeGen:
 
   private final case class Emit(names: Map[Expr, String], lines: Vector[String], next: Int)
 
-  /** Where a named parameter sits in the packed parameter buffer. Element-major, so the layout does not depend on how many elements a launch carries. */
-  private def slotOf(formula: Formula, name: String): String =
-    val idx = formula.params.indexOf(name)
-    if formula.params.size == 1 then "params[e]" else s"params[e * ${formula.params.size} + $idx]"
+  /** How the two per-element buffers are addressed. Both are element-major, so a slot's position does not depend on how many elements a launch
+    * carries — which is what lets the batch size vary between launches while persistent state stays put.
+    */
+  private final case class Refs(param: String => String, state: String => String)
+
+  private def slotOf(buffer: String, declared: List[String], name: String): String =
+    val idx = declared.indexOf(name)
+    if declared.size == 1 then s"$buffer[e]" else s"$buffer[e * ${declared.size} + $idx]"
 
   /** Post-order walk. Constants, arguments and the index are referenced inline; every computed node becomes one `float vN = …;`. */
-  private def emit(e: Expr, st: Emit, paramRef: String => String): (Emit, String) =
+  private def emit(e: Expr, st: Emit, refs: Refs): (Emit, String) =
     st.names.get(e) match
       case Some(name) => (st, name)
       case None =>
@@ -69,14 +74,16 @@ object CodeGen:
           case Expr.Const(v)   => (st, literal(v))
           case Expr.Uniform(n) => (st, n)
           // Per batch element, not per work-item in dimension 0: one launch covers every element, so a parameter is a read at this element's slot.
-          case Expr.Param(n) => (st, paramRef(n))
+          case Expr.Param(n) => (st, refs.param(n))
+          // Read from the buffer the previous launch wrote. Every work-item in dimension 0 sees the same value; only one of them writes it back.
+          case Expr.State(n) => (st, refs.state(n))
           case Expr.Index    => (st, "fi")
           case Expr.Bin(op, l, r) =>
-            val (st1, a) = emit(l, st, paramRef)
-            val (st2, b) = emit(r, st1, paramRef)
+            val (st1, a) = emit(l, st, refs)
+            val (st2, b) = emit(r, st1, refs)
             define(e, binText(op, a, b), st2)
           case Expr.Un(op, a) =>
-            val (st1, x) = emit(a, st, paramRef)
+            val (st1, x) = emit(a, st, refs)
             define(e, unText(op, x), st1)
           case Expr.Sum(_) => throw new IllegalArgumentException("Sum is only valid at the root of a formula")
 
@@ -97,33 +104,53 @@ object CodeGen:
     * parameters share one packed buffer for the same reason — every extra host→device transfer costs about what the kernel does.
     */
   def apply(formula: Formula): String =
-    (formula.uniforms ++ formula.params)
+    (formula.uniforms ++ formula.params ++ formula.states)
       .find(reserved.contains)
       .foreach(n => throw new IllegalArgumentException(s"argument name '$n' is reserved by the kernel"))
-    formula.uniforms
-      .find(formula.params.contains)
-      .foreach(n => throw new IllegalArgumentException(s"'$n' is declared both as a uniform and as a parameter"))
-    val paramRef = slotOf(formula, _)
+    List(
+      ("a uniform", "a parameter", formula.uniforms, formula.params),
+      ("a uniform", "a state", formula.uniforms, formula.states),
+      ("a parameter", "a state", formula.params, formula.states))
+      .foreach: (kindA, kindB, a, b) =>
+        a.find(b.contains).foreach(n => throw new IllegalArgumentException(s"'$n' is declared both as $kindA and as $kindB"))
+    val refs = Refs(slotOf("params", formula.params, _), slotOf("stateIn", formula.states, _))
 
     /* Emitted in two phases when the formula reduces, because the two halves run in different places: everything
      * below the Sum is per element and runs before the barrier, everything above it operates on the finished
      * total and runs once, in the reducing work-item. Seeding the second phase with the first phase's names --
      * including the sum itself, bound to `mix` -- is what lets a shared subexpression be computed once and used
      * on both sides. */
-    val (perElement, elementResult, post, result) = formula.sum match
+    val (elementPhase, elementResult, postPhase, result) = formula.sum match
       case Some(inner) =>
-        val (a, total) = emit(inner, Emit(Map.empty, Vector.empty, 0), paramRef)
+        val (a, total) = emit(inner, Emit(Map.empty, Vector.empty, 0), refs)
         val seeded = a.copy(names = a.names + (Expr.Sum(inner) -> "mix"), lines = Vector.empty)
-        val (b, out) = emit(formula.body, seeded, paramRef)
-        (a.lines, total, b.lines, out)
+        val (b, out) = emit(formula.body, seeded, refs)
+        (a, total, b, out)
       case None =>
-        val (a, out) = emit(formula.body, Emit(Map.empty, Vector.empty, 0), paramRef)
-        (a.lines, out, Vector.empty, out)
+        val (a, out) = emit(formula.body, Emit(Map.empty, Vector.empty, 0), refs)
+        (a, out, a.copy(lines = Vector.empty), out)
+    val post = postPhase.lines
+
+    /* A third phase, seeded from the per-element one for the same reason: an update almost always shares work with
+     * the value it accompanies -- a phase advanced by the frequency the sample was computed from -- and seeding
+     * means that work is computed once. Guarded to one work-group in dimension 0 because state is per element and
+     * an update, by contract, cannot depend on the index: every work-group would otherwise write the same value. */
+    val writeBack =
+      if formula.states.isEmpty then Vector.empty
+      else
+        val seed = elementPhase.copy(lines = Vector.empty, next = postPhase.next)
+        val (st, assignments) = formula.states.foldLeft((seed, Vector.empty[String])):
+          case ((acc, out), name) =>
+            val (next, value) = emit(formula.updates(name), acc, refs)
+            (next, out :+ s"  ${slotOf("stateOut", formula.states, name)} = $value;")
+        (Vector("  if (i == 0) {") ++ (st.lines ++ assignments).map("  " + _) :+ "  }")
 
     val scalars = (formula.uniforms.map(n => s"float $n") ++ (if formula.isReduced then List("int ne") else Nil))
       .map(", " + _)
       .mkString
     val paramArgs = if formula.params.isEmpty then "" else ", __global const float* params"
+    // Appended after the parameter buffer so a formula that gains state keeps every earlier argument's index.
+    val stateArgs = if formula.states.isEmpty then "" else ", __global const float* stateIn, __global float* stateOut"
     // One float per batch element, scoped to the work-group, which the host sizes at launch.
     val localArgs = if formula.isReduced then ", __local float* acc" else ""
 
@@ -131,10 +158,12 @@ object CodeGen:
       s"""  int i = get_global_id(0);
          |  float fi = (float)i;""".stripMargin
 
+    val perElement = (elementPhase.lines ++ writeBack).mkString("\n")
+
     val core =
       if formula.isReduced then
         s"""  int e = get_local_id(1);
-           |${perElement.mkString("\n")}
+           |$perElement
            |  acc[e] = $elementResult;
            |  barrier(CLK_LOCAL_MEM_FENCE);
            |  if (e == 0) {
@@ -146,10 +175,10 @@ object CodeGen:
       else
         s"""  int e = get_global_id(1);
            |  int n = get_global_size(0);
-           |${perElement.mkString("\n")}
+           |$perElement
            |  out[e * n + i] = $result;""".stripMargin
 
-    s"""__kernel void $kernelName(__global float* out$scalars$paramArgs$localArgs) {
+    s"""__kernel void $kernelName(__global float* out$scalars$paramArgs$stateArgs$localArgs) {
        |$preamble
        |$core
        |}
