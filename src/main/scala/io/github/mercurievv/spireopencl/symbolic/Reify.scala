@@ -1,5 +1,9 @@
 package io.github.mercurievv.spireopencl.symbolic
 
+import cats.Id
+import cats.data.StateT
+import io.github.mercurievv.spireopencl.symbolic.state.{Store, VarId}
+
 /** A reified computation: the tree, plus the arguments it expects at run time.
   *
   * `uniforms` and `params` are *declared*, not discovered. Constant folding can delete a name from the tree (multiply by a zero mask and it
@@ -95,6 +99,30 @@ object Reify:
       lookup("state", states, Expr.State.apply),
     )
     Formula(body, uniforms, params, states, updates)
+
+  /** As `stateful`, but the cells come from a `Var`/`.at`-composed program over `Store[Expr]` instead of a hand-written `(Expr, Map[String, Expr])`
+    * pair — the bridge from the algebra in `symbolic.state` to a device-resident cell, so a caller does not re-derive it per timbre.
+    *
+    * `program` is built once, with real `Expr.Uniform`/`Expr.Param` nodes bound to the declared names, and then run twice: once from an empty store
+    * to see which `VarId`s it touches — cell ids come from the program's own structure, not the folded tree, so a cell that constant-folds out of the
+    * body still keeps its slot — and once seeded with each touched id's `Expr.State` read, which is what turns "the value a cell held last launch"
+    * into part of the tree rather than a number that does not exist yet. A `VarId`'s device name is `s"v$$id"`.
+    */
+  def statefulVar(uniforms: List[String], params: List[String])(program: (String => Expr, String => Expr) => StateT[Id, Store[Expr], Expr]): Formula =
+    val uniform = lookup("uniform", uniforms, Expr.Uniform.apply)
+    val param = lookup("param", params, Expr.Param.apply)
+    val built = program(uniform, param)
+    val touched: List[VarId] = built.runS(Map.empty).keys.toList.sorted
+    def name(id: VarId): String = s"v$id"
+    val seeded = touched.map(id => id -> Expr.State(name(id))).toMap
+    val (finalStore, body) = built.run(seeded)
+    Formula(
+      body,
+      uniforms,
+      params,
+      states  = touched.map(name),
+      updates = finalStore.map((id, next) => name(id) -> next),
+    )
 
   private def lookup(kind: String, declared: List[String], node: String => Expr): String => Expr =
     val table = declared.map(n => n -> node(n)).toMap
