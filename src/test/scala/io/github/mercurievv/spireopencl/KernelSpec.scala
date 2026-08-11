@@ -46,7 +46,10 @@ object KernelSpec extends SimpleIOSuite:
         // The mask must actually fire inside this window, or the test would pass on all-zeros.
         val gated = (0 until size).count(i => reference(params, i) == 0.0)
         expect(diff < 1e-4, f"kernel differs from Expr.eval by $diff%.3e") &&
-        expect(gated > 0 && gated < size, s"the gate did not switch within the window ($gated of $size zero)")
+        expect(
+          gated > 0 && gated < size,
+          s"the gate did not switch within the window ($gated of $size zero)",
+        )
       }
     }
   }
@@ -63,7 +66,10 @@ object KernelSpec extends SimpleIOSuite:
         kernel.renderBatchUnsafe(uniforms, batch, out)
         val diffs = batch.zipWithIndex.map { case (p, e) => worst(out, e * size, reference(p, _)) }
         // Distinct frequencies: if the slices were aliased or the packed buffer misindexed, at least one would be wrong.
-        expect(diffs.max < 1e-4, f"worst slice differs by ${diffs.max}%.3e (per slice: ${diffs.mkString(", ")})")
+        expect(
+          diffs.max < 1e-4,
+          f"worst slice differs by ${diffs.max}%.3e (per slice: ${diffs.mkString(", ")})",
+        )
       }
     }
   }
@@ -117,9 +123,20 @@ object KernelSpec extends SimpleIOSuite:
 
   test("a batch beyond what the kernel was compiled for is refused") {
     ClKernel.compile[IO](formula, size, 1).use { kernel =>
-      IO(kernel.renderBatchUnsafe(uniforms, Seq(Map("freq" -> 1f, "gate" -> 0f), Map("freq" -> 2f, "gate" -> 0f)), new Array[Float](size * 2)))
+      IO(
+        kernel.renderBatchUnsafe(
+          uniforms,
+          Seq(Map("freq" -> 1f, "gate" -> 0f), Map("freq" -> 2f, "gate" -> 0f)),
+          new Array[Float](size * 2),
+        ),
+      )
         .as(failure("should have refused the oversized batch"))
-        .handleError(e => expect(e.getMessage.contains("exceed the compiled maximum"), s"wrong failure: ${e.getMessage}"))
+        .handleError(e =>
+          expect(
+            e.getMessage.contains("exceed the compiled maximum"),
+            s"wrong failure: ${e.getMessage}",
+          ),
+        )
     }
   }
 
@@ -174,9 +191,15 @@ object KernelSpec extends SimpleIOSuite:
         expect(first == ((0.0f, 0.0f)), s"cells start zeroed, got $first") &&
         expect(second == ((1.0f, 10.0f)), s"one launch's update, got $second") &&
         expect(third == ((2.0f, 20.0f)), s"updates accumulate, got $third") &&
-        expect(cells.toList == List(3.0f, 30.0f), s"the write-back ran once more than was read back, got ${cells.toList}") &&
+        expect(
+          cells.toList == List(3.0f, 30.0f),
+          s"the write-back ran once more than was read back, got ${cells.toList}",
+        ) &&
         // The cell is read by every work-item in dimension 0, not only the one that writes it back.
-        expect((0 until size).forall(i => out(i) == 2.0f), "some work-items read a different value than others")
+        expect(
+          (0 until size).forall(i => out(i) == 2.0f),
+          "some work-items read a different value than others",
+        )
       }
     }
   }
@@ -217,6 +240,11 @@ object KernelSpec extends SimpleIOSuite:
       ClKernel
         .compileOn[IO](dev, broken, size, 1)
         .use(_ => IO.pure(failure("compile should have failed to build")))
-        .handleError(e => expect(e.getMessage.contains("kernel build failed"), s"wrong failure: ${e.getMessage}"))
+        .handleError(e =>
+          expect(
+            e.getMessage.contains("kernel build failed"),
+            s"wrong failure: ${e.getMessage}",
+          ),
+        )
     }
   }

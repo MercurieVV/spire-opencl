@@ -39,7 +39,10 @@ object SpireProgramSpec extends SimpleIOSuite:
     val (b, c, d) = (2.5, 4.0, 0.75)
     val expected = program[Double](b, c, d)
     compileAndRun(formula, Map("b" -> b.toFloat, "c" -> c.toFloat, "d" -> d.toFloat)).map { actual =>
-      expect(math.abs(actual.toDouble - expected) < 1e-5, f"kernel gave $actual%.6f, spire at Double gives $expected%.6f") &&
+      expect(
+        math.abs(actual.toDouble - expected) < 1e-5,
+        f"kernel gave $actual%.6f, spire at Double gives $expected%.6f",
+      ) &&
       // Not vacuous: the value must actually depend on all three arguments.
       expect(math.abs(expected - (b * c)) > 1e-3, "sin(d) contributed nothing to the reference")
     }
@@ -67,7 +70,10 @@ object SpireProgramSpec extends SimpleIOSuite:
     val (x, y) = (0.4, 2.0)
     compileAndRun(formula, Map("x" -> x.toFloat, "y" -> y.toFloat)).map { actual =>
       val expected = wide[Double](x, y)
-      expect(math.abs(actual.toDouble - expected) / math.abs(expected) < 1e-5, f"kernel $actual%.6f vs spire $expected%.6f")
+      expect(
+        math.abs(actual.toDouble - expected) / math.abs(expected) < 1e-5,
+        f"kernel $actual%.6f vs spire $expected%.6f",
+      )
     }
   }
 

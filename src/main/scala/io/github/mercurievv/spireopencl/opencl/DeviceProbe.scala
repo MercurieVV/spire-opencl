@@ -106,7 +106,9 @@ object DeviceProbe:
     println(s"    version   : ${deviceString(device, CL_DEVICE_VERSION)}")
     println(s"    units     : ${deviceInt(device, CL_DEVICE_MAX_COMPUTE_UNITS)}")
     println(s"    max group : ${deviceLong(device, CL_DEVICE_MAX_WORK_GROUP_SIZE)}")
-    println(s"    fp64 ext  : ${extensions.contains("cl_khr_fp64")}  (preferred double width ${deviceInt(device, CL_DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE)})")
+    println(
+      s"    fp64 ext  : ${extensions.contains("cl_khr_fp64")}  (preferred double width ${deviceInt(device, CL_DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE)})",
+    )
     println(s"    extensions: $extensions")
     // The extension string and the preferred-width hint both lie on some drivers; the only trustworthy
     // answer is whether a double kernel actually builds and produces the right numbers.

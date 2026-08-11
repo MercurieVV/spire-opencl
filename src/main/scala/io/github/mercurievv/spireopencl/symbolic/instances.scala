@@ -56,12 +56,14 @@ object instances:
 
   /** `sqrt`, `nroot` and `fpow`. An integer power folds to repeated multiplication (see `Expr.pow`) rather than a `pow` call. */
   given nrootExpr: NRoot[Expr]:
+
     def nroot(a: Expr, n: Int): Expr =
       if n == 2 then Expr.un(UnOp.Sqrt, a) else Expr.pow(a, Expr.Const(1.0 / n.toDouble))
     override def sqrt(a: Expr): Expr = Expr.un(UnOp.Sqrt, a)
     def fpow(a: Expr, b: Expr): Expr = Expr.pow(a, b)
 
   given orderExpr: OrderS[Expr]:
+
     extension (a: Expr)
       def greaterThan(a2: Expr): Expr = Expr.gt(a, a2)
       infix def <<(a2: Expr): Expr = Expr.lt(a, a2)

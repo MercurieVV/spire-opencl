@@ -31,11 +31,12 @@ object VarSpec extends SimpleIOSuite:
 
   pureTest("two cells at different ids are independent") {
     val incrementBy = (n: Double) => StateT[Id, Double, Unit](prev => (prev + n, ()))
-    val program = for
-      _ <- incrementBy(1.0).at[Store[Double]](0)
-      _ <- incrementBy(10.0).at[Store[Double]](1)
-      _ <- incrementBy(1.0).at[Store[Double]](0)
-    yield ()
+    val program =
+      for
+        _ <- incrementBy(1.0).at[Store[Double]](0)
+        _ <- incrementBy(10.0).at[Store[Double]](1)
+        _ <- incrementBy(1.0).at[Store[Double]](0)
+      yield ()
 
     val (finalStore, _) = program.run(Map.empty)
     expect(finalStore == Map(0 -> 2.0, 1 -> 10.0))

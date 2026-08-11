@@ -16,6 +16,7 @@ trait OrderS[@specialized(Int, Long, Float, Double) A]:
 object OrderS:
 
   given OrderS[Double]:
+
     extension (a: Double)
       def greaterThan(a2: Double): Double = if a > a2 then 1.0 else 0.0
       infix def <<(a2: Double): Double = if a < a2 then 1.0 else 0.0

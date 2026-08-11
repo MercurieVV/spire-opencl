@@ -63,7 +63,17 @@ object CodeGenSpec extends SimpleIOSuite:
   pureTest("nested reductions are rejected: there is one batch dimension") {
     expect(rejects(CodeGen(Formula(Expr.Sum(Expr.Sum(Expr.Param("v"))), Nil, List("v"))))) &&
     // Two separate reductions are the same problem: only one can be the barrier.
-    expect(rejects(CodeGen(Formula(Expr.add(Expr.Sum(Expr.Param("v")), Expr.Sum(Expr.Param("w"))), Nil, List("v", "w")))))
+    expect(
+      rejects(
+        CodeGen(
+          Formula(
+            Expr.add(Expr.Sum(Expr.Param("v")), Expr.Sum(Expr.Param("w"))),
+            Nil,
+            List("v", "w"),
+          ),
+        ),
+      ),
+    )
   }
 
   pureTest("work above the reduction may still be arbitrary algebra") {

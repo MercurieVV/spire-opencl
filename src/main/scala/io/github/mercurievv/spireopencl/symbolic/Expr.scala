@@ -9,15 +9,16 @@ package io.github.mercurievv.spireopencl.symbolic
   * what a data-parallel backend wants instead of a branch per element.
   */
 enum BinOp(val eval: (Double, Double) => Double) derives CanEqual:
-  case Add extends BinOp(_ + _)
-  case Mul extends BinOp(_ * _)
-  case Div extends BinOp(_ / _)
-  case Gt extends BinOp((a, b) => if a > b then 1.0 else 0.0)
-  case Lt extends BinOp((a, b) => if a < b then 1.0 else 0.0)
-  case Pow extends BinOp(math.pow)
+  case Add   extends BinOp(_ + _)
+  case Mul   extends BinOp(_ * _)
+  case Div   extends BinOp(_ / _)
+  case Gt    extends BinOp((a, b) => if a > b then 1.0 else 0.0)
+  case Lt    extends BinOp((a, b) => if a < b then 1.0 else 0.0)
+  case Pow   extends BinOp(math.pow)
   case Atan2 extends BinOp(math.atan2)
-  /** Remainder, with the sign of the dividend — `fmod`, not a floored modulus. The operation a periodic accumulator needs: a value that grows
-    * without bound loses absolute precision as it grows, and in single precision it does so fast enough to matter.
+
+  /** Remainder, with the sign of the dividend — `fmod`, not a floored modulus. The operation a periodic accumulator needs: a value that grows without
+    * bound loses absolute precision as it grows, and in single precision it does so fast enough to matter.
     */
   case Rem extends BinOp((a, b) => a % b)
 
@@ -25,21 +26,21 @@ enum BinOp(val eval: (Double, Double) => Double) derives CanEqual:
   * that a caller writes ordinary spire code and this is what it turns into.
   */
 enum UnOp(val eval: Double => Double) derives CanEqual:
-  case Neg extends UnOp(-_)
-  case Sin extends UnOp(math.sin)
-  case Cos extends UnOp(math.cos)
-  case Tan extends UnOp(math.tan)
-  case Asin extends UnOp(math.asin)
-  case Acos extends UnOp(math.acos)
-  case Atan extends UnOp(math.atan)
-  case Sinh extends UnOp(math.sinh)
-  case Cosh extends UnOp(math.cosh)
-  case Tanh extends UnOp(math.tanh)
-  case Exp extends UnOp(math.exp)
+  case Neg   extends UnOp(-_)
+  case Sin   extends UnOp(math.sin)
+  case Cos   extends UnOp(math.cos)
+  case Tan   extends UnOp(math.tan)
+  case Asin  extends UnOp(math.asin)
+  case Acos  extends UnOp(math.acos)
+  case Atan  extends UnOp(math.atan)
+  case Sinh  extends UnOp(math.sinh)
+  case Cosh  extends UnOp(math.cosh)
+  case Tanh  extends UnOp(math.tanh)
+  case Exp   extends UnOp(math.exp)
   case Expm1 extends UnOp(math.expm1)
-  case Log extends UnOp(math.log)
+  case Log   extends UnOp(math.log)
   case Log1p extends UnOp(math.log1p)
-  case Sqrt extends UnOp(math.sqrt)
+  case Sqrt  extends UnOp(math.sqrt)
 
 /** The intermediate representation: what a computation *is*, before anything decides how to run it.
   *
@@ -51,8 +52,8 @@ enum UnOp(val eval: Double => Double) derives CanEqual:
   *   - `Const` — fixed when the formula is built; folded and inlined.
   *   - `Uniform` — one scalar per launch, identical for every work-item: a kernel argument.
   *   - `Param` — one scalar per **batch element** (dimension 1), read from the packed parameter buffer.
-  *   - `Index` — the dimension-0 work-item index, as a float. Everything that varies *within* a launch is derived from this, in the IR, by the
-  *     caller — the library has no notion of what dimension 0 counts.
+  *   - `Index` — the dimension-0 work-item index, as a float. Everything that varies *within* a launch is derived from this, in the IR, by the caller
+  *     — the library has no notion of what dimension 0 counts.
   *   - `State` — one scalar per batch element that *persists between launches*, read at the start of a launch and rewritten at the end.
   */
 enum Expr derives CanEqual:
@@ -73,15 +74,16 @@ enum Expr derives CanEqual:
 
   /** Sum of `body` over the batch dimension — a reduction, as an IR node.
     *
-    * Reduction is `Field.plus` folded over dimension 1, the same algebra as everything else in the tree, so it belongs in the tree: expressing it here
-    * is what lets a backend fold the reduction into the same pass that computes the elements. The batch size is a run-time value, not part of the IR,
-    * so this node says "sum over whatever elements are present" and the backend supplies how many.
+    * Reduction is `Field.plus` folded over dimension 1, the same algebra as everything else in the tree, so it belongs in the tree: expressing it
+    * here is what lets a backend fold the reduction into the same pass that computes the elements. The batch size is a run-time value, not part of
+    * the IR, so this node says "sum over whatever elements are present" and the backend supplies how many.
     *
     * Valid only at the root of a formula. Nesting has no meaning — there is one batch dimension.
     */
   case Sum(body: Expr)
 
 object Expr:
+
   import BinOp.*
   import UnOp.*
 
@@ -148,8 +150,8 @@ object Expr:
     * subset a code generator without `pow` could still handle.
     */
   def pow(base: Expr, exponent: Expr): Expr = (base, exponent) match
-    case (_, Const(1.0))                                 => base
-    case (_, Const(0.0))                                 => one
+    case (_, Const(1.0))                                                       => base
+    case (_, Const(0.0))                                                       => one
     case (_, Const(n)) if n == n.round.toDouble && math.abs(n) <= 8.0 && n > 0 =>
       (1 until n.toInt).foldLeft(base)((acc, _) => mul(acc, base))
     case _ => bin(Pow, base, exponent)
@@ -169,7 +171,7 @@ object Expr:
 
   /** Reference evaluation of a reduced formula: one env per batch element, each resolving that element's params and the shared uniforms. */
   def evalSummed(envs: Seq[String => Double], index: Double)(e: Expr): Double = e match
-    case Sum(body) => envs.foldLeft(0.0)((acc, env) => acc + eval(env, index)(body))
+    case Sum(body)                       => envs.foldLeft(0.0)((acc, env) => acc + eval(env, index)(body))
     case Bin(op, l, r) if containsSum(e) => op.eval(evalSummed(envs, index)(l), evalSummed(envs, index)(r))
     case Un(op, a) if containsSum(e)     => op.eval(evalSummed(envs, index)(a))
     case other                           => envs.headOption.fold(0.0)(env => eval(env, index)(other))

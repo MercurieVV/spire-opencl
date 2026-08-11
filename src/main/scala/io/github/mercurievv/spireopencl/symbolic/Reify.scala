@@ -2,9 +2,9 @@ package io.github.mercurievv.spireopencl.symbolic
 
 /** A reified computation: the tree, plus the arguments it expects at run time.
   *
-  * `uniforms` and `params` are *declared*, not discovered. Constant folding can delete a name from the tree (multiply by a zero mask and it vanishes),
-  * and if the argument list were derived from the tree the kernel's argument indices would shift under it. Declared order is the binding order,
-  * always.
+  * `uniforms` and `params` are *declared*, not discovered. Constant folding can delete a name from the tree (multiply by a zero mask and it
+  * vanishes), and if the argument list were derived from the tree the kernel's argument indices would shift under it. Declared order is the binding
+  * order, always.
   *
   *   - `uniforms` — one value per launch, shared by every work-item; passed as scalar kernel arguments.
   *   - `params` — one value per batch element; packed into a single buffer, element-major.
@@ -15,13 +15,23 @@ final case class Formula(
   uniforms: List[String],
   params: List[String],
   states: List[String] = Nil,
-  updates: Map[String, Expr] = Map.empty) derives CanEqual:
+  updates: Map[String, Expr] = Map.empty)
+    derives CanEqual:
+
   require(
     updates.keySet == states.toSet,
-    s"every state needs exactly one update; declared ${states.sorted}, updated ${updates.keys.toList.sorted}")
+    s"every state needs exactly one update; declared ${states.sorted}, updated ${updates.keys.toList.sorted}",
+  )
+
   updates.foreach: (name, update) =>
-    require(!Expr.containsIndex(update), s"state update '$name' depends on Index; there is no single work-item at which to take it")
-    require(!Expr.containsSum(update), s"state update '$name' contains a Sum; state is per batch element, reduction spans them")
+    require(
+      !Expr.containsIndex(update),
+      s"state update '$name' depends on Index; there is no single work-item at which to take it",
+    )
+    require(
+      !Expr.containsSum(update),
+      s"state update '$name' contains a Sum; state is per batch element, reduction spans them",
+    )
 
   def nodeCount: Int = Expr.nodeCount(body)
 
@@ -57,7 +67,14 @@ object Reify:
     * counts.
     */
   def apply(uniforms: List[String], params: List[String])(build: (String => Expr, String => Expr) => Expr): Formula =
-    Formula(build(lookup("uniform", uniforms, Expr.Uniform.apply), lookup("param", params, Expr.Param.apply)), uniforms, params)
+    Formula(
+      build(
+        lookup("uniform", uniforms, Expr.Uniform.apply),
+        lookup("param", params, Expr.Param.apply),
+      ),
+      uniforms,
+      params,
+    )
 
   /** As `apply`, with cells that persist between launches.
     *
@@ -65,14 +82,24 @@ object Reify:
     * rather than written because there is nothing to write to: the tree is a value, and a cell's new value is simply another expression over the same
     * inputs — including its own previous value.
     */
-  def stateful(uniforms: List[String], params: List[String], states: List[String])(
-    build: (String => Expr, String => Expr, String => Expr) => (Expr, Map[String, Expr])): Formula =
+  def stateful(
+    uniforms: List[String],
+    params: List[String],
+    states: List[String],
+  )(
+    build: (String => Expr, String => Expr, String => Expr) => (Expr, Map[String, Expr]),
+  ): Formula =
     val (body, updates) = build(
       lookup("uniform", uniforms, Expr.Uniform.apply),
       lookup("param", params, Expr.Param.apply),
-      lookup("state", states, Expr.State.apply))
+      lookup("state", states, Expr.State.apply),
+    )
     Formula(body, uniforms, params, states, updates)
 
   private def lookup(kind: String, declared: List[String], node: String => Expr): String => Expr =
     val table = declared.map(n => n -> node(n)).toMap
-    name => table.getOrElse(name, throw new IllegalArgumentException(s"undeclared $kind '$name'; declared: $declared"))
+    name =>
+      table.getOrElse(
+        name,
+        throw new IllegalArgumentException(s"undeclared $kind '$name'; declared: $declared"),
+      )

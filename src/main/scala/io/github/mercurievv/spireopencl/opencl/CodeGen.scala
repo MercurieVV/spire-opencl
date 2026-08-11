@@ -16,7 +16,21 @@ object CodeGen:
   val kernelName = "compute"
 
   /** Names the emitted kernel uses for itself. A declared argument may not collide with one. */
-  private val reserved = Set("i", "fi", "e", "n", "ne", "k", "out", "params", "stateIn", "stateOut", "acc", "mix", kernelName)
+  private val reserved = Set(
+    "i",
+    "fi",
+    "e",
+    "n",
+    "ne",
+    "k",
+    "out",
+    "params",
+    "stateIn",
+    "stateOut",
+    "acc",
+    "mix",
+    kernelName,
+  )
 
   /** Deterministic C float literal. `toString` would emit `1.0E-4`, which is legal C, but fixed formatting keeps generated sources diffable. */
   private def literal(v: Double): String =
@@ -69,15 +83,15 @@ object CodeGen:
   private def emit(e: Expr, st: Emit, refs: Refs): (Emit, String) =
     st.names.get(e) match
       case Some(name) => (st, name)
-      case None =>
+      case None       =>
         e match
           case Expr.Const(v)   => (st, literal(v))
           case Expr.Uniform(n) => (st, n)
           // Per batch element, not per work-item in dimension 0: one launch covers every element, so a parameter is a read at this element's slot.
           case Expr.Param(n) => (st, refs.param(n))
           // Read from the buffer the previous launch wrote. Every work-item in dimension 0 sees the same value; only one of them writes it back.
-          case Expr.State(n) => (st, refs.state(n))
-          case Expr.Index    => (st, "fi")
+          case Expr.State(n)      => (st, refs.state(n))
+          case Expr.Index         => (st, "fi")
           case Expr.Bin(op, l, r) =>
             val (st1, a) = emit(l, st, refs)
             val (st2, b) = emit(r, st1, refs)
@@ -110,7 +124,8 @@ object CodeGen:
     List(
       ("a uniform", "a parameter", formula.uniforms, formula.params),
       ("a uniform", "a state", formula.uniforms, formula.states),
-      ("a parameter", "a state", formula.params, formula.states))
+      ("a parameter", "a state", formula.params, formula.states),
+    )
       .foreach: (kindA, kindB, a, b) =>
         a.find(b.contains).foreach(n => throw new IllegalArgumentException(s"'$n' is declared both as $kindA and as $kindB"))
     val refs = Refs(slotOf("params", formula.params, _), slotOf("stateIn", formula.states, _))
@@ -161,8 +176,7 @@ object CodeGen:
     val perElement = (elementPhase.lines ++ writeBack).mkString("\n")
 
     val core =
-      if formula.isReduced then
-        s"""  int e = get_local_id(1);
+      if formula.isReduced then s"""  int e = get_local_id(1);
            |$perElement
            |  acc[e] = $elementResult;
            |  barrier(CLK_LOCAL_MEM_FENCE);
@@ -172,8 +186,7 @@ object CodeGen:
            |${post.map("  " + _).mkString("\n")}
            |    out[i] = $result;
            |  }""".stripMargin
-      else
-        s"""  int e = get_global_id(1);
+      else s"""  int e = get_global_id(1);
            |  int n = get_global_size(0);
            |$perElement
            |  out[e * n + i] = $result;""".stripMargin
