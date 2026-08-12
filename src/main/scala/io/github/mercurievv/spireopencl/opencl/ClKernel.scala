@@ -47,6 +47,41 @@ trait Kernel[F[_]]:
     onPhase: (String, Long) => Unit = (_, _) => (),
   ): Unit
 
+  /** [[renderBatchUnsafe]] with the results read into caller-owned **native** memory rather than a heap array.
+    *
+    * Same launch, same layout, same contract; only the readback's destination differs. It exists because a heap array is often not where the result
+    * is wanted: a caller that must hand these floats to something outside the JVM — an audio host's output buffer, a native ring, a mapped file —
+    * otherwise pays a copy out of the array immediately after the driver copied into it, and at small sizes that second copy is a real share of the
+    * launch. Given a buffer over the destination, the driver writes it directly and there is no second copy at all.
+    *
+    * `out` must be **direct** — JOCL cannot take a pointer to a heap buffer, and a non-direct one is rejected here rather than deep inside the
+    * driver. Results are written starting at `out.position()` and the position is left where it was, so a caller can aim successive launches at
+    * successive slices of one buffer without reallocating a view.
+    */
+  def renderBatchIntoUnsafe(
+    uniforms: Map[String, Float],
+    batch: Seq[Map[String, Float]],
+    out: java.nio.FloatBuffer,
+    onPhase: (String, Long) => Unit = (_, _) => (),
+  ): Unit
+
+  /** [[renderBatchIntoUnsafe]] with the batch already packed, so no per-element collection is built at all.
+    *
+    * `params` is element-major in **declared parameter order** — element `e`'s values occupy `params[e * paramCount .. e * paramCount + paramCount)`
+    * — which is the layout the staging buffer wants, so the call is a copy rather than a traversal of maps. It exists for callers on an audio path:
+    * naming three floats per element through a `Map` allocated one per element per block is a real cost at a few milliseconds per block, and the
+    * names are fixed at compile time anyway.
+    *
+    * Same direct-buffer requirement, same layout and same contract as [[renderBatchIntoUnsafe]] otherwise.
+    */
+  def renderBatchPackedUnsafe(
+    uniforms: Map[String, Float],
+    params: Array[Float],
+    batchSize: Int,
+    out: java.nio.FloatBuffer,
+    onPhase: (String, Long) => Unit = (_, _) => (),
+  ): Unit
+
   /** The persistent cells as the last launch left them, element-major: element `e`'s cells occupy `out[e * states .. e * states + states)`, in
     * declared order. For tests and diagnosis — the audio path never reads state back, which is the point of keeping it on the device.
     */
@@ -58,6 +93,45 @@ trait Kernel[F[_]]:
   def writeStateUnsafe(in: Array[Float]): Unit
 
 object ClKernel:
+
+  /** Where a launch's results are read back to.
+    *
+    * The driver only ever needs a pointer and a length, and both a heap array and a direct buffer can supply those — so the two output shapes are one
+    * parameter rather than two copies of the launch body. `zeroFill` is here because an empty batch means "no work, silence" and each shape blanks
+    * itself differently.
+    */
+  private trait Destination:
+    def capacity: Int
+    def pointer: Pointer
+    def zeroFill(): Unit
+
+    /** Names the shape in the too-small error, which is otherwise indistinguishable between the two. */
+    def describe: String
+
+  private object Destination:
+
+    def heap(out: Array[Float]): Destination = new Destination:
+      def capacity: Int = out.length
+      def pointer: Pointer = Pointer.to(out)
+      def zeroFill(): Unit = java.util.Arrays.fill(out, 0.0f)
+      def describe: String = "output array"
+
+    /** Writes from the buffer's current position and leaves the position there: the caller aims successive launches at slices of one buffer, and a
+      * side effect on the position would silently make the second launch overwrite the first.
+      */
+    def native(out: java.nio.FloatBuffer): Destination = new Destination:
+      def capacity: Int = out.remaining
+      def pointer: Pointer = Pointer.toBuffer(out)
+
+      def zeroFill(): Unit =
+        val base = out.position()
+        val n = out.remaining
+        var i = 0
+        while i < n do
+          out.put(base + i, 0.0f)
+          i += 1
+
+      def describe: String = "output buffer"
 
   final case class Device(platform: cl_platform_id, device: cl_device_id, name: String)
 
@@ -263,25 +337,74 @@ object ClKernel:
         batch: Seq[Map[String, Float]],
         out: Array[Float],
         onPhase: (String, Long) => Unit = (_, _) => (),
+      ): Unit =
+        launch(uniforms, batch.size, () => fillFromMaps(batch), Destination.heap(out), onPhase)
+
+      def renderBatchPackedUnsafe(
+        uniforms: Map[String, Float],
+        params: Array[Float],
+        batchSize: Int,
+        out: java.nio.FloatBuffer,
+        onPhase: (String, Long) => Unit = (_, _) => (),
+      ): Unit =
+        val needed = batchSize * elementParams.size
+        if params.length < needed then
+          throw new IllegalArgumentException(s"packed parameters are ${params.length} floats, need $needed for $batchSize elements")
+        else if !out.isDirect then throw new IllegalArgumentException("output buffer must be direct: JOCL cannot take a pointer into the JVM heap")
+        else
+          launch(
+            uniforms,
+            batchSize,
+            () => {
+              var i = 0
+              while i < needed do
+                staging.put(i, params(i))
+                i += 1
+            },
+            Destination.native(out),
+            onPhase,
+          )
+
+      def renderBatchIntoUnsafe(
+        uniforms: Map[String, Float],
+        batch: Seq[Map[String, Float]],
+        out: java.nio.FloatBuffer,
+        onPhase: (String, Long) => Unit = (_, _) => (),
+      ): Unit =
+        if !out.isDirect then throw new IllegalArgumentException("output buffer must be direct: JOCL cannot take a pointer into the JVM heap")
+        else launch(uniforms, batch.size, () => fillFromMaps(batch), Destination.native(out), onPhase)
+
+      /** One launch. The destination is the only thing the two public entry points disagree about, and it is reached exactly twice — once to size the
+        * check, once to hand the driver a pointer — so keeping them one body is what stops the two paths drifting.
+        */
+      /** The staging fill for a batch of `Map`s: one lookup per declared parameter per element. */
+      private def fillFromMaps(batch: Seq[Map[String, Float]]): Unit =
+        batch.zipWithIndex.foreach { case (v, elementIdx) =>
+          elementParams.zipWithIndex.foreach { case (name, paramIdx) =>
+            val value =
+              v.getOrElse(
+                name,
+                throw new IllegalArgumentException(s"batch element $elementIdx is missing parameter '$name'; got ${v.keys.toList}"),
+              )
+            staging.put(elementIdx * elementParams.size + paramIdx, value)
+          }
+        }
+
+      private def launch(
+        uniforms: Map[String, Float],
+        n: Int,
+        fillStaging: () => Unit,
+        dest: Destination,
+        onPhase: (String, Long) => Unit,
       ): Unit = {
-        val n = batch.size
         val outputFloats = if reduced then size else size * n
-        if n == 0 then java.util.Arrays.fill(out, 0.0f)
+        if n == 0 then dest.zeroFill()
         else if n > maxBatchSize then throw new IllegalArgumentException(s"$n batch elements exceed the compiled maximum of $maxBatchSize")
-        else if out.length < outputFloats then
-          throw new IllegalArgumentException(s"output array is ${out.length}, needs at least $outputFloats for $n elements of $size")
+        else if dest.capacity < outputFloats then
+          throw new IllegalArgumentException(s"${dest.describe} holds ${dest.capacity} floats, needs at least $outputFloats for $n elements of $size")
         else
           if elementParams.nonEmpty then
-            batch.zipWithIndex.foreach { case (v, elementIdx) =>
-              elementParams.zipWithIndex.foreach { case (name, paramIdx) =>
-                val value =
-                  v.getOrElse(
-                    name,
-                    throw new IllegalArgumentException(s"batch element $elementIdx is missing parameter '$name'; got ${v.keys.toList}"),
-                  )
-                staging.put(elementIdx * elementParams.size + paramIdx, value)
-              }
-            }
+            fillStaging()
             staging.position(0)
             clEnqueueWriteBuffer(
               queue,
@@ -357,7 +480,7 @@ object ClKernel:
             CL_TRUE,
             0,
             (Sizeof.cl_float * outputFloats).toLong,
-            Pointer.to(out),
+            dest.pointer,
             0,
             null,
             null,

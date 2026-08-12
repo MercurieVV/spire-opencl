@@ -324,3 +324,92 @@ object KernelSpec extends SimpleIOSuite:
         )
     }
   }
+
+  test("reading into native memory gives the same floats as reading into an array") {
+    // The two entry points share a launch and differ only in the pointer handed to `clEnqueueReadBuffer`, so
+    // anything but bit-identical output means the destination changed the arithmetic — which it must not.
+    val batch = Seq(Map("freq" -> 3.0f, "gate" -> 0.4f), Map("freq" -> 5.0f, "gate" -> 0.1f))
+    ClKernel.compile[IO](formula, size, batch.size).use { kernel =>
+      IO {
+        val viaArray = new Array[Float](size * batch.size)
+        kernel.renderBatchUnsafe(uniforms, batch, viaArray)
+
+        // Deliberately offset: the buffer's position is where the results must land, and a launch that ignored it
+        // would still pass a test that always wrote at zero.
+        val pad = 7
+        val buf = java.nio.ByteBuffer
+          .allocateDirect((size * batch.size + pad) * java.lang.Float.BYTES)
+          .order(java.nio.ByteOrder.nativeOrder)
+          .asFloatBuffer
+        buf.position(pad)
+        kernel.renderBatchIntoUnsafe(uniforms, batch, buf)
+
+        val viaBuffer = Array.tabulate(size * batch.size)(i => buf.get(pad + i))
+        expect(
+          viaBuffer.sameElements(viaArray),
+          "native readback differs from the array readback",
+        ) &&
+        expect(buf.position() == pad, "the launch moved the buffer's position") &&
+        expect(
+          viaArray.exists(_ != 0.0f),
+          "the formula produced silence, so the comparison proves nothing",
+        )
+      }
+    }
+  }
+
+  test("a heap buffer is refused rather than passed to the driver") {
+    ClKernel.compile[IO](formula, size, 1).use { kernel =>
+      IO {
+        val heap = java.nio.FloatBuffer.allocate(size)
+        val err = scala.util.Try(kernel.renderBatchIntoUnsafe(uniforms, Seq(Map("freq" -> 1.0f, "gate" -> 0.0f)), heap))
+        expect(err.isFailure) &&
+        expect(
+          err.failed.get.getMessage.contains("direct"),
+          s"wrong failure: ${err.failed.get.getMessage}",
+        )
+      }
+    }
+  }
+
+  test("a packed batch launches to the same floats as a batch of maps") {
+    // The packed entry point exists to remove a per-element Map from an audio path, so the one thing it must not do is
+    // compute anything different. Bit-identical: same launch, same staging bytes, only the way they were named differs.
+    val batch = Seq(Map("freq" -> 3.0f, "gate" -> 0.4f), Map("freq" -> 5.0f, "gate" -> 0.1f))
+    ClKernel.compile[IO](formula, size, batch.size).use { kernel =>
+      IO {
+        val viaArray = new Array[Float](size * batch.size)
+        kernel.renderBatchUnsafe(uniforms, batch, viaArray)
+
+        def direct(n: Int) = java.nio.ByteBuffer
+          .allocateDirect(n * java.lang.Float.BYTES)
+          .order(java.nio.ByteOrder.nativeOrder)
+          .asFloatBuffer
+
+        // Element-major, in the order the formula declares its parameters -- "freq" then "gate".
+        val packed = Array(3.0f, 0.4f, 5.0f, 0.1f)
+        val buf = direct(size * batch.size)
+        kernel.renderBatchPackedUnsafe(uniforms, packed, batch.size, buf)
+        val viaPacked = Array.tabulate(size * batch.size)(buf.get)
+
+        expect(viaPacked.sameElements(viaArray), "packed batch differs from the map batch") &&
+        expect(
+          viaArray.exists(_ != 0.0f),
+          "the formula produced silence, so the comparison proves nothing",
+        )
+      }
+    }
+  }
+
+  test("a packed batch too short for its element count is refused") {
+    ClKernel.compile[IO](formula, size, 2).use { kernel =>
+      IO {
+        val buf = java.nio.ByteBuffer.allocateDirect(size * 2 * 4).order(java.nio.ByteOrder.nativeOrder).asFloatBuffer
+        val err = scala.util.Try(kernel.renderBatchPackedUnsafe(uniforms, Array(1.0f, 2.0f), 2, buf))
+        expect(err.isFailure) && expect(
+          err.failed.get.getMessage.contains("need 4"),
+          s"wrong failure: ${err.failed.get.getMessage}",
+        )
+      }
+    }
+  }
