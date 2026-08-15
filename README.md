@@ -152,6 +152,21 @@ See [docs/var-operations.md](docs/var-operations.md) for a second walkthrough �
 `NRoot` operations at once, plus a `Var`/`.at`-built stateful cell compiled and actually launched on
 this machine's OpenCL device.
 
+## Benchmarks
+
+`bench` is a JMH module comparing this library against the same numeric program run on the JVM —
+Spire typeclasses over primitive arrays, Breeze `DenseVector`, and a plain `while` loop as the
+floor. The program is written once and instantiated at both `Expr` and `Float`, so the two sides
+cannot drift apart.
+
+```
+./mill bench.test     # the four contenders must agree before any timing means anything
+./mill bench.runJmh
+```
+
+See [docs/benchmarking.md](docs/benchmarking.md) for what is measured, which comparisons the
+library's shape does not admit, and how the transfer/compute split is recovered.
+
 ## Releasing
 
 The git tag is the version — `publishVersion` reads `GITHUB_REF_NAME`, so:

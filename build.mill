@@ -1,4 +1,4 @@
-//| mvnDeps: ["com.goyeau::mill-scalafix_mill1:0.6.0"]
+//| mvnDeps: ["com.goyeau::mill-scalafix_mill1:0.6.0", "com.lihaoyi::mill-contrib-jmh:1.1.8"]
 package build
 
 import mill._
@@ -8,6 +8,7 @@ import mill.scalalib.scalafmt.ScalafmtModule
 import mill.javalib.SonatypeCentralPublishModule
 import mill.util.Jvm
 import com.goyeau.mill.scalafix.ScalafixModule
+import mill.contrib.jmh.JmhModule
 
 val scala3Version = "3.8.4"
 
@@ -73,6 +74,33 @@ object spireOpencl extends ScalaModule with ScalafmtModule with ScalafixModule w
     def moduleDir = spireOpencl.moduleDir
     def sources   = Task.Sources(moduleDir / "src" / "test" / "scala")
     def mvnDeps   = Seq(mvn"com.disneystreaming::weaver-cats:0.8.4")
+  }
+}
+
+/**
+ * JMH benchmarks: this library against the same numeric program run on the JVM.
+ *
+ * Its own directory (`bench/src`), not `moduleDir / os.up`. `spireOpencl` already claims the repo
+ * root as its base directory, and IntelliJ keys a module on that directory — two modules sharing one
+ * would import as a single collapsed module with one module's classpath applied to both.
+ *
+ * No wartremover and no `-language:strictEquality`: a JMH `@State` class is a mutable bean by
+ * construction and the generated harness compares boxed values.
+ */
+object bench extends ScalaModule with JmhModule with ScalafmtModule {
+  def scalaVersion = scala3Version
+  def jmhCoreVersion      = "1.37"
+  def jmhGeneratorVersion = "1.37"
+  def moduleDeps   = Seq(spireOpencl)
+
+  // JmhModule puts jmh on the generator and run classpaths, not on the one that compiles the annotated sources.
+  def mvnDeps = Seq(
+    mvn"org.scalanlp::breeze:2.1.0",
+    mvn"org.openjdk.jmh:jmh-core:1.37",
+  )
+
+  object test extends ScalaTests with TestModule.Weaver {
+    def mvnDeps = Seq(mvn"com.disneystreaming::weaver-cats:0.8.4")
   }
 }
 
