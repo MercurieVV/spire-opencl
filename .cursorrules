@@ -70,3 +70,6 @@ You are acting as an expert Scala engineer. When writing, refactoring, or review
 * **Step 4 (Apply Changes)**: Ask for user confirmation, then edit the build files (`project.scala`, `build.sc`/`build.mill`, or `build.sbt`) using correct syntax.
 * **Step 5 (Verify)**: Run code formatting and verify compilation to ensure there are no library resolution or compiler conflicts.
 
+
+## Scala Code Rules
+MUST follow the rules in [SCALA_SEMANTIC_RULES.md](SCALA_SEMANTIC_RULES.md). Mandatory, not optional.

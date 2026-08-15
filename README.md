@@ -2,6 +2,8 @@
 
 Instantiate numeric code at a symbolic value type, get an OpenCL kernel.
 
+Documentation: https://mercurievv.github.io/spire-opencl/
+
 ```scala
 libraryDependencies += "io.github.mercurievv" %% "spire-opencl" % "0.1.0-SNAPSHOT"
 ```

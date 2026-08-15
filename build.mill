@@ -247,25 +247,61 @@ object bench extends ScalaModule with JmhModule with ScalafmtModule {
 object docs extends ScalaModule {
   def scalaVersion = scala3Version
   def moduleDeps   = Seq(spireOpencl)
+  def sources      = Task.Sources(moduleDir / os.up / "mdoc-docs" / "src" / "main" / "scala")
   def mvnDeps = Seq(
     mvn"org.scalameta::mdoc:2.9.0",
+    mvn"org.typelevel::laika-io:1.3.2",
+    mvn"com.lihaoyi::upickle:4.4.3",
     mvn"org.scala-lang::scala3-compiler:$scala3Version",
   )
 
   // Directory mode: every `.md` under here is checked (`README.md` plus any further pages, e.g. `var-operations.md`).
   def mdocSource = Task.Source(moduleDir)
 
-  def mdoc() = Task.Command {
+  private def preparedMarkdown = Task {
+    val dest = Task.dest / "docs"
+    os.makeDir.all(dest)
+    os.copy.over(mdocSource().path, dest, createFolders = true)
+    Jvm.callProcess(
+      mainClass = "docs.BenchmarkResults",
+      classPath = runClasspath().map(_.path).toSeq,
+      mainArgs = Seq(
+        (moduleDir / os.up / "bench" / "results" / "2026-08-15-apple-m3-max.json").toString,
+        (dest / "benchmarking.md").toString,
+      ),
+    )
+    PathRef(dest)
+  }
+
+  private def checkedMarkdown = Task {
+    val prepared = preparedMarkdown()
     Jvm.callProcess(
       mainClass = "mdoc.Main",
       classPath = runClasspath().map(_.path).toSeq,
       mainArgs = Seq(
         "--in",
-        mdocSource().path.toString,
+        prepared.path.toString,
         "--out",
         Task.dest.toString,
         "--classpath",
         runClasspath().map(_.path).mkString(java.io.File.pathSeparator),
+      ),
+    )
+    PathRef(Task.dest)
+  }
+
+  def mdoc() = Task.Command {
+    checkedMarkdown()
+  }
+
+  def site() = Task.Command {
+    val checked = checkedMarkdown()
+    Jvm.callProcess(
+      mainClass = "docs.DocsMain",
+      classPath = runClasspath().map(_.path).toSeq,
+      mainArgs = Seq(
+        checked.path.toString,
+        Task.dest.toString,
       ),
     )
     PathRef(Task.dest)
