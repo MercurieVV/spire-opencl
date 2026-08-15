@@ -16,6 +16,34 @@ The module is `bench`; sources live under `bench/src`.
 mean anything, and nothing about a timing reveals that they do not — a GPU row being four times
 faster looks identical whether it is faster or whether it is evaluating a shorter expression.
 
+## Keeping history
+
+`bench.runJmh` runs and forgets. `bench.record` runs, keeps the report, and compares it against the
+previous one:
+
+```bash
+./mill bench.record                          # full matrix, recorded, compared against the last run
+./mill bench.record -f 1 -wi 2 -i 3 GeneratorBench   # any runJmh argument still works
+./mill bench.history                         # what has been recorded
+./mill bench.compare                         # the two most recent, without running anything
+./mill bench.compare a.json b.json 5         # two named reports, 5% threshold
+```
+
+Reports land in `bench/results/<timestamp>.json` and are meant to be committed — see
+`bench/results/README.md`. Neither JMH nor Mill has any notion of a previous run, so this is local
+rather than the usual `benchmark-action/github-action-benchmark`, which keeps history on a CI branch
+and would be measuring a GPU-less runner here.
+
+**What counts as a regression.** Not simply a slower number. A row is reported only when it is worse
+by more than the threshold (10% by default) **and** the two runs' 99.9% confidence intervals do not
+overlap — so the claim is that the difference exceeds the spread each run measured for itself, rather
+than exceeding an arbitrary percentage. A quick `-f 1 -wi 1 -i 2` run has intervals wide enough that
+almost nothing will be flagged, which is correct: that run does not know enough to accuse anything.
+`bench.record` and `bench.compare` fail the build when something is flagged.
+
+Benchmarks in the baseline that a filtered run did not measure are counted, not listed — running a
+subset is the normal case and printing every excluded row as if deleted would bury the ones measured.
+
 Narrower runs, by regex and parameter:
 
 ```bash

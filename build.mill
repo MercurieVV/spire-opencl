@@ -94,10 +94,103 @@ object bench extends ScalaModule with JmhModule with ScalafmtModule {
   def moduleDeps   = Seq(spireOpencl)
 
   // JmhModule puts jmh on the generator and run classpaths, not on the one that compiles the annotated sources.
+  // upickle/os-lib are for `History`, which reads the recorded reports back.
   def mvnDeps = Seq(
     mvn"org.scalanlp::breeze:2.1.0",
     mvn"org.openjdk.jmh:jmh-core:1.37",
+    mvn"com.lihaoyi::upickle:4.4.3",
+    mvn"com.lihaoyi::os-lib:0.11.8",
   )
+
+  /**
+   * Where recorded runs live. Resolved from the workspace root rather than from `moduleDir`, because it
+   * is a repo path this module happens to own, not part of the module's own layout.
+   */
+  def resultsDir: os.Path = mill.api.BuildCtx.workspaceRoot / "bench" / "results"
+
+  private def recorded(): Seq[os.Path] =
+    if !os.exists(resultsDir) then Nil
+    else os.list(resultsDir).filter(p => p.ext == "json").sortBy(os.mtime)
+
+  /**
+   * Run the benchmarks and keep the report, then compare it against the previous one.
+   *
+   * `runJmh` executes with `cwd` inside mill's `out`, so `-rff` has to be given an absolute path or the
+   * report lands somewhere no one will look for it again. Everything else the caller passes is appended,
+   * so `./mill bench.record -f 1 -wi 2 -i 3 GeneratorBench` still records.
+   *
+   * Exclusive because it is a benchmark: anything else mill runs in parallel is measurement noise.
+   */
+  def record(args: String*) = Task.Command(exclusive = true) {
+    val previous = recorded().lastOption
+    os.makeDir.all(resultsDir)
+    val stamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmmss"))
+    val report = resultsDir / s"$stamp.json"
+
+    val (_, resources) = generateBenchmarkSources()
+    Jvm.callProcess(
+      mainClass = "org.openjdk.jmh.Main",
+      classPath = (runClasspath() ++ generatorDeps()).map(_.path) ++ Seq(jmhGeneratedSources().path, resources.path),
+      mainArgs = Seq("-rf", "json", "-rff", report.toString) ++ args,
+      cwd = Task.ctx().dest,
+      javaHome = javaHome().map(_.path),
+      stdin = os.Inherit,
+      stdout = os.Inherit,
+    )
+
+    Task.log.info(s"recorded $report")
+    previous match {
+      case None       => Task.log.info("no earlier run to compare against; this one is the baseline")
+      case Some(base) => compareReports(runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator), base, report)
+    }
+    PathRef(report)
+  }
+
+  /**
+   * Compare two recorded reports without running anything. With no arguments, the two most recent;
+   * with two paths, those. A third argument overrides the regression threshold in percent.
+   */
+  def compare(args: String*) = Task.Command(exclusive = true) {
+    val files = recorded()
+    val (base, current, rest) = args.toList match {
+      case a :: b :: tail => (os.Path(a, mill.api.BuildCtx.workspaceRoot), os.Path(b, mill.api.BuildCtx.workspaceRoot), tail)
+      case tail           =>
+        if files.length < 2 then throw new IllegalStateException(s"need two recorded runs in $resultsDir, found ${files.length}")
+        else (files(files.length - 2), files.last, tail)
+    }
+    compareReports(runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator), base, current, rest)
+  }
+
+  /** The recorded runs, oldest first. */
+  def history() = Task.Command(exclusive = true) {
+    val files = recorded()
+    if files.isEmpty then Task.log.info(s"no recorded runs in $resultsDir")
+    else files.foreach(p => Task.log.info(s"${java.time.Instant.ofEpochMilli(os.mtime(p))}  ${p.last}"))
+    files.map(PathRef(_))
+  }
+
+  /**
+   * `classPath` is passed in rather than read here: `runClasspath()` resolves a task, which is only legal
+   * inside a task body, and this is a plain method shared by three of them.
+   */
+  private def compareReports(classPath: String, base: os.Path, current: os.Path, extra: List[String] = Nil)(
+      implicit ctx: mill.api.TaskCtx
+  ): Unit = {
+    // A regression exits non-zero, which is the point of the check, so the process result is inspected
+    // rather than left to abort the build with a stack trace that says nothing.
+    val result = os.proc(
+      Jvm.jdkTool("java"),
+      "-cp",
+      classPath,
+      "io.github.mercurievv.spireopencl.bench.History",
+      base.toString,
+      current.toString,
+      extra,
+    ).call(cwd = mill.api.BuildCtx.workspaceRoot, stdout = os.Inherit, stderr = os.Inherit, check = false)
+    // `Task.fail`, not an exception: a regression is a result, and a stack trace through the build file
+    // says nothing the report above has not already said.
+    if (result.exitCode != 0) Task.fail(s"benchmark regression against ${base.last}")
+  }
 
   object test extends ScalaTests with TestModule.Weaver {
     def mvnDeps = Seq(mvn"com.disneystreaming::weaver-cats:0.8.4")
