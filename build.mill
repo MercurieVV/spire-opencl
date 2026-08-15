@@ -161,6 +161,40 @@ object bench extends ScalaModule with JmhModule with ScalafmtModule {
     compareReports(runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator), base, current, rest)
   }
 
+  /**
+   * Rates rather than durations for a recorded run: elements/s, GB/s against the memory the arithmetic
+   * runs out of, operations/s, and arithmetic intensity. Defaults to the most recent report.
+   */
+  def report(args: String*) = Task.Command(exclusive = true) {
+    val target = args.headOption
+      .map(a => os.Path(a, mill.api.BuildCtx.workspaceRoot))
+      .orElse(recorded().lastOption)
+      .getOrElse(throw new IllegalStateException(s"no recorded runs in $resultsDir"))
+    os.proc(
+      Jvm.jdkTool("java"),
+      "-cp",
+      runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator),
+      "io.github.mercurievv.spireopencl.bench.Report",
+      target.toString,
+    ).call(cwd = mill.api.BuildCtx.workspaceRoot, stdout = os.Inherit, stderr = os.Inherit)
+    ()
+  }
+
+  /**
+   * ULP error of every transcendental against the same operation in Double, plus error along a dependent
+   * chain and whether the device flushes subnormals. Exits non-zero if anything exceeds what the OpenCL
+   * specification permits.
+   */
+  def precision() = Task.Command(exclusive = true) {
+    val result = os.proc(
+      Jvm.jdkTool("java"),
+      "-cp",
+      runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator),
+      "io.github.mercurievv.spireopencl.bench.Precision",
+    ).call(cwd = mill.api.BuildCtx.workspaceRoot, stdout = os.Inherit, stderr = os.Inherit, check = false)
+    if (result.exitCode != 0) Task.fail("an operation exceeds the accuracy the OpenCL specification permits")
+  }
+
   /** The recorded runs, oldest first. */
   def history() = Task.Command(exclusive = true) {
     val files = recorded()
