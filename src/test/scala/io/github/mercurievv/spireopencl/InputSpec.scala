@@ -34,6 +34,12 @@ object InputSpec extends SimpleIOSuite:
 
   private def data(seed: Int): Array[Float] = Array.tabulate(n)(i => (i * seed % 17).toFloat - 8.0f)
 
+  private object Data:
+
+    /** JOCL cannot take a pointer into the JVM heap, so a readback destination has to be allocated direct. */
+    def directFloats(count: Int): java.nio.FloatBuffer =
+      java.nio.ByteBuffer.allocateDirect(count * java.lang.Float.BYTES).order(java.nio.ByteOrder.nativeOrder).asFloatBuffer
+
   pureTest("each input becomes its own pointer argument, read at the work-item index") {
     val src = CodeGen(formula)
     expect(src.contains("__global const float* a, __global const float* b, __global const float* c")) &&
@@ -175,6 +181,74 @@ object InputSpec extends SimpleIOSuite:
         kernel.writeInputUnsafe("b", data(5))
         kernel.writeInputUnsafe("c", data(7))
         expect(rejects(kernel.renderBatchMappedUnsafe(Map.empty, Seq(Map.empty))(_.remaining)))
+      }
+    }
+  }
+
+  test("launches in flight land in separate slots and all survive to be collected") {
+    // The contract that makes pipelining safe: several enqueued launches must not overwrite each other,
+    // and each slot must still hold its own answer once the queue drains.
+    val (a, b, c) = (data(3), data(5), data(7))
+    val scaled = Reify.arrays(Nil, List("g"), List("a", "b", "c"))((_, p, in) => Expr.mul(program(in("a"), in("b"), in("c")), p("g")))
+    ClKernel.compile[IO](scaled, size = n, maxBatchSize = 1, outputSlots = 4).use { kernel =>
+      IO {
+        kernel.writeInputUnsafe("a", a)
+        kernel.writeInputUnsafe("b", b)
+        kernel.writeInputUnsafe("c", c)
+        val gains = List(1.0f, 2.0f, 3.0f, 4.0f)
+        val slots = gains.map(g => kernel.enqueueBatchUnsafe(Map.empty, Seq(Map("g" -> g))))
+        kernel.finishUnsafe()
+        val got = slots.map { slot =>
+          val buf = Data.directFloats(n)
+          kernel.readSlotUnsafe(slot, buf)
+          val out = new Array[Float](n)
+          buf.duplicate().get(out)
+          out.toList
+        }
+        val expected = gains.map(g => Array.tabulate(n)(i => program[Float](a(i), b(i), c(i)) * g).toList)
+        expect(slots == List(0, 1, 2, 3)) and expect(kernel.outputSlots == 4) and expect(got == expected)
+      }
+    }
+  }
+
+  test("enqueued readbacks land correctly once the queue has drained") {
+    // The pipelined shape end to end: nothing waits until `finishUnsafe`, and every destination must then
+    // hold its own launch's answer. Each gets its own buffer because an enqueued read writes whenever the
+    // driver reaches it.
+    val (a, b, c) = (data(3), data(5), data(7))
+    val scaled = Reify.arrays(Nil, List("g"), List("a", "b", "c"))((_, p, in) => Expr.mul(program(in("a"), in("b"), in("c")), p("g")))
+    ClKernel.compile[IO](scaled, size = n, maxBatchSize = 1, outputSlots = 4).use { kernel =>
+      IO {
+        kernel.writeInputUnsafe("a", a)
+        kernel.writeInputUnsafe("b", b)
+        kernel.writeInputUnsafe("c", c)
+        val gains = List(1.0f, 2.0f, 3.0f, 4.0f)
+        val destinations = gains.map(_ => Data.directFloats(n))
+        gains.zip(destinations).foreach { (g, dest) =>
+          val slot = kernel.enqueueBatchUnsafe(Map.empty, Seq(Map("g" -> g)))
+          kernel.enqueueReadSlotUnsafe(slot, dest)
+        }
+        kernel.finishUnsafe()
+        val got = destinations.map { buf =>
+          val out = new Array[Float](n)
+          buf.duplicate().get(out)
+          out.toList
+        }
+        expect(got == gains.map(g => Array.tabulate(n)(i => program[Float](a(i), b(i), c(i)) * g).toList))
+      }
+    }
+  }
+
+  test("slots wrap, and a slot outside the compiled range is refused") {
+    ClKernel.compile[IO](formula, size = n, maxBatchSize = 1, outputSlots = 2).use { kernel =>
+      IO {
+        kernel.writeInputUnsafe("a", data(3))
+        kernel.writeInputUnsafe("b", data(5))
+        kernel.writeInputUnsafe("c", data(7))
+        val slots = (0 until 5).map(_ => kernel.enqueueBatchUnsafe(Map.empty, Seq(Map.empty))).toList
+        kernel.finishUnsafe()
+        expect(slots == List(0, 1, 0, 1, 0)) and
+          expect(rejects(kernel.readSlotUnsafe(2, Data.directFloats(n))))
       }
     }
   }

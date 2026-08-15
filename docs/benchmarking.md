@@ -133,6 +133,43 @@ silently promoted to `Double`, which would be a different computation.
 vector per call while every other row writes into a reused array. That is Breeze's API, not harness
 sloppiness, and the allocation is part of what the idiom costs.
 
+## Beyond duration
+
+A duration only answers "how long", which is useful against a decision and nothing else. Four other
+questions are measured, each because a duration cannot answer it.
+
+**Rates** — `./mill bench.report`. `Traffic` states what each benchmark moves and how many operations
+it performs (counted off the `Expr` DAG after CSE, so it is what the kernel really executes), and
+`Report` turns a recorded run into elements/s, GB/s, operations/s and arithmetic intensity. The
+ceiling is the best bandwidth observed in that run, taken only from rows whose working set exceeds
+64 MB — a 10^4-element row answers out of cache at a rate main memory cannot sustain, and using it
+would make every honest row look like a fraction of a number never available to it. Transcendentals
+count as one operation, so compute-bound rows read as a lower bound.
+
+**Accuracy** — `./mill bench.precision`, and asserted in `bench.test`. A kernel that is fifty times
+faster and quietly less accurate is not fifty times better, and no timing says which one you have.
+OpenCL does not promise correctly rounded transcendentals — 4 ULP for `sin`, 3 for `exp`, 16 for
+`pow` — so the error is a documented quantity to check against. `Precision` measures ULP error
+against each operation's own `Double` definition, which is the definition `CodeGen` claims to compile
+faithfully. It also reports error along a dependent chain, and whether the device flushes subnormals
+to zero — a cliff rather than a rounding error, and invisible to any speed benchmark.
+
+**Break-even** — `ResidencyBench`. Every other elementwise row takes one of two extremes: upload
+every launch, or upload once and never count it. The real question is a ratio — data arrives, then
+some number of kernels run before it changes. Both rows carry the upload, and the packed row gets
+pre-interleaved data (its best case), so the break-even reported is conservative against residency.
+
+**Marshalling** — `MarshallingBench`. Every other benchmark starts from an `Array[Float]`, which is a
+convenient fiction: data arrives as `Double`, or boxed, or row-major out of a columnar store. That
+conversion is a full pass, is paid before the library is called at all, and can cost more than the
+entire computation.
+
+**Latency against throughput** — `PipelineBench`. A blocking entry point costs a host round trip, and
+at small sizes that round trip is not part of the cost but all of it. `pipelined` enqueues the
+launches *and their readbacks* and waits once. Enqueuing launches while still collecting them with
+blocking reads moves the round trips rather than removing them — the first version of this benchmark
+did exactly that and measured no gain at all.
+
 ## Separating transfer from compute
 
 `Kernel.onPhase` reports three timestamps per launch and `PhaseCounters` surfaces them as JMH

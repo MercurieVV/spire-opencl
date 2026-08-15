@@ -106,6 +106,40 @@ trait Kernel[F[_]]:
     use: java.nio.FloatBuffer => A,
   ): A
 
+  /** How many launches can be in flight before their results start overwriting each other. One unless the kernel was compiled for more. */
+  def outputSlots: Int
+
+  /** Enqueues a launch and returns without waiting for it, giving back the slot its results will land in.
+    *
+    * Every other entry point blocks on the readback, so the host pays a full round trip to the device per launch — at small sizes that round trip
+    * *is* the measurement, and no amount of arithmetic changes it. Enqueuing several launches before collecting any lets the driver keep the device
+    * fed and amortises the round trip across them.
+    *
+    * Results are only valid once [[finishUnsafe]] has returned, and only until `outputSlots` further launches have reused the slot. A caller that
+    * enqueues more than the kernel has slots is silently overwriting its own results, which is why the count is fixed at compile and exposed.
+    */
+  def enqueueBatchUnsafe(
+    uniforms: Map[String, Float],
+    batch: Seq[Map[String, Float]],
+    onPhase: (String, Long) => Unit = (_, _) => (),
+  ): Int
+
+  /** Blocks until everything enqueued has finished. */
+  def finishUnsafe(): Unit
+
+  /** Copies one slot's results out, for a launch already known to have finished. `out` must be direct. */
+  def readSlotUnsafe(slot: Int, out: java.nio.FloatBuffer): Unit
+
+  /** [[readSlotUnsafe]] enqueued rather than waited on, so a whole pipeline can be issued before the host stops once.
+    *
+    * A blocking read is a host round trip, and issuing several launches only to collect them with several blocking reads moves the round trips
+    * without removing any. This is the other half: enqueue the launches, enqueue their readbacks, then wait once.
+    *
+    * `out` must be direct, must stay alive and untouched until [[finishUnsafe]] returns, and must be a distinct region per slot — the driver writes
+    * into it whenever it gets there, and two overlapping destinations will race.
+    */
+  def enqueueReadSlotUnsafe(slot: Int, out: java.nio.FloatBuffer): Unit
+
   /** Fills a declared input array in device memory. `data` must hold at least [[size]] floats; anything beyond that is ignored.
     *
     * Separate from launching, which is the whole point: the array stays on the device and is read by every launch until it is written again. A caller
@@ -286,8 +320,9 @@ object ClKernel:
     size: Int,
     maxBatchSize: Int = DefaultMaxBatch,
     hostVisibleOutput: Boolean = false,
+    outputSlots: Int = 1,
   ): Resource[F, Kernel[F]] =
-    Resource.eval(defaultDevice[F]).flatMap(compileOn(_, formula, size, maxBatchSize, hostVisibleOutput))
+    Resource.eval(defaultDevice[F]).flatMap(compileOn(_, formula, size, maxBatchSize, hostVisibleOutput, outputSlots))
 
   /** `hostVisibleOutput` allocates the output where the host can map it, which is what makes [[Kernel.renderBatchMappedUnsafe]] cheap. Off by
     * default: on a device with its own memory it can place the buffer somewhere the kernel writes to more slowly, and a caller who reads back the
@@ -299,14 +334,16 @@ object ClKernel:
     size: Int,
     maxBatchSize: Int = DefaultMaxBatch,
     hostVisibleOutput: Boolean = false,
+    outputSlots: Int = 1,
   ): Resource[F, Kernel[F]] =
     val src = CodeGen(formula)
     val elementParams = formula.params
     val uniformNames = formula.uniforms
     val stateNames = formula.states
     val inputNames = formula.inputs
-    // The compile parameter, captured before the returned kernel shadows the name with its own member.
+    // The compile parameters, captured before the returned kernel shadows their names with its own members.
     val dim0 = size
+    val slots = outputSlots
 
     def acquire[A](f: => A)(release: A => Unit): Resource[F, A] =
       Resource.make(Sync[F].delay(f))(a => Sync[F].delay(release(a)))
@@ -338,16 +375,21 @@ object ClKernel:
         catch case e: CLException => throw new IllegalStateException(s"kernel build failed: ${e.getMessage}\n${buildLog(p, dev.device)}", e)
         p
       }(clReleaseProgram)
-      kernel    <- acquire(clCreateKernel(program, CodeGen.kernelName, null))(clReleaseKernel)
-      outBuffer <- acquire(
-        clCreateBuffer(
-          context,
-          if hostVisibleOutput then CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR else CL_MEM_WRITE_ONLY,
-          (Sizeof.cl_float * size * maxBatchSize).toLong,
-          null,
-          null,
+      kernel <- acquire(clCreateKernel(program, CodeGen.kernelName, null))(clReleaseKernel)
+      /* One buffer per slot. A launch that is not read back immediately must not have its results
+       * overwritten by the next one, so slots rotate: with a single slot this is exactly the old
+       * behaviour, and with more the host can let several launches accumulate before collecting any. */
+      outBuffers <- acquire(
+        Array.fill(outputSlots)(
+          clCreateBuffer(
+            context,
+            if hostVisibleOutput then CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR else CL_MEM_WRITE_ONLY,
+            (Sizeof.cl_float * size * maxBatchSize).toLong,
+            null,
+            null,
+          ),
         ),
-      )(clReleaseMemObject)
+      )(_.foreach(clReleaseMemObject))
       // One packed buffer for every per-element parameter of every element, laid out element-major to match CodeGen.
       paramBuffer <- acquire(
         clCreateBuffer(
@@ -397,6 +439,10 @@ object ClKernel:
       val source: String = src
       val maxBatch: Int = maxBatchSize
       val size: Int = dim0
+      val outputSlots: Int = slots
+
+      /** Which slot the next launch writes. Rotates, so `outputSlots` launches can be in flight before one overwrites another. */
+      private val nextSlot = new java.util.concurrent.atomic.AtomicInteger(0)
       val reduced: Boolean = formula.isReduced
 
       /** Inputs not yet written. An unwritten array reads as zeros, which is a silent wrong answer rather than a loud one — so the first launch
@@ -415,6 +461,39 @@ object ClKernel:
         if !inputWritten(idx) then
           inputWritten(idx) = true
           pendingInputs -= 1
+
+      def enqueueBatchUnsafe(
+        uniforms: Map[String, Float],
+        batch: Seq[Map[String, Float]],
+        onPhase: (String, Long) => Unit = (_, _) => (),
+      ): Int =
+        launch(uniforms, batch.size, () => fillFromMaps(batch), None, onPhase)
+
+      def finishUnsafe(): Unit =
+        clFinish(queue)
+        ()
+
+      def readSlotUnsafe(slot: Int, out: java.nio.FloatBuffer): Unit = readSlot(slot, out, CL_TRUE)
+
+      def enqueueReadSlotUnsafe(slot: Int, out: java.nio.FloatBuffer): Unit = readSlot(slot, out, CL_FALSE)
+
+      private def readSlot(slot: Int, out: java.nio.FloatBuffer, blocking: Boolean): Unit =
+        if slot < 0 || slot >= slots then throw new IllegalArgumentException(s"slot $slot is outside the compiled range 0..${slots - 1}")
+        else if !out.isDirect then throw new IllegalArgumentException("output buffer must be direct: JOCL cannot take a pointer into the JVM heap")
+        else
+          val floats = math.min(out.remaining, size * maxBatchSize)
+          clEnqueueReadBuffer(
+            queue,
+            outBuffers(slot),
+            blocking,
+            0,
+            (Sizeof.cl_float * floats).toLong,
+            Pointer.toBuffer(out),
+            0,
+            null,
+            null,
+          )
+          ()
 
       def writeInput(name: String, data: Array[Float]): F[Unit] = Sync[F].delay(writeInputUnsafe(name, data))
 
@@ -509,7 +588,13 @@ object ClKernel:
         out: Array[Float],
         onPhase: (String, Long) => Unit = (_, _) => (),
       ): Unit =
-        launch(uniforms, batch.size, () => fillFromMaps(batch), Destination.heap(out), onPhase)
+        val _ = launch(
+          uniforms,
+          batch.size,
+          () => fillFromMaps(batch),
+          Some(Destination.heap(out)),
+          onPhase,
+        )
 
       def renderBatchPackedUnsafe(
         uniforms: Map[String, Float],
@@ -523,7 +608,7 @@ object ClKernel:
           throw new IllegalArgumentException(s"packed parameters are ${params.length} floats, need $needed for $batchSize elements")
         else if !out.isDirect then throw new IllegalArgumentException("output buffer must be direct: JOCL cannot take a pointer into the JVM heap")
         else
-          launch(
+          val _ = launch(
             uniforms,
             batchSize,
             () => {
@@ -532,7 +617,7 @@ object ClKernel:
                 staging.put(i, params(i))
                 i += 1
             },
-            Destination.native(out),
+            Some(Destination.native(out)),
             onPhase,
           )
 
@@ -550,7 +635,7 @@ object ClKernel:
           )
         else
           val dest = Destination.mapped(use)
-          launch(uniforms, batch.size, () => fillFromMaps(batch), dest, onPhase)
+          val _ = launch(uniforms, batch.size, () => fillFromMaps(batch), Some(dest), onPhase)
           dest()
 
       def renderBatchIntoUnsafe(
@@ -560,7 +645,14 @@ object ClKernel:
         onPhase: (String, Long) => Unit = (_, _) => (),
       ): Unit =
         if !out.isDirect then throw new IllegalArgumentException("output buffer must be direct: JOCL cannot take a pointer into the JVM heap")
-        else launch(uniforms, batch.size, () => fillFromMaps(batch), Destination.native(out), onPhase)
+        else
+          val _ = launch(
+            uniforms,
+            batch.size,
+            () => fillFromMaps(batch),
+            Some(Destination.native(out)),
+            onPhase,
+          )
 
       /** One launch. The destination is the only thing the two public entry points disagree about, and it is reached exactly twice — once to size the
         * check, once to hand the driver a pointer — so keeping them one body is what stops the two paths drifting.
@@ -578,23 +670,29 @@ object ClKernel:
           }
         }
 
+      /** `dest` is optional: `None` enqueues the work and returns without waiting for it, which is what lets a caller put several launches in flight
+        * before collecting any of them. The slot the results land in is returned so they can be collected later.
+        */
       private def launch(
         uniforms: Map[String, Float],
         n: Int,
         fillStaging: () => Unit,
-        dest: Destination,
+        dest: Option[Destination],
         onPhase: (String, Long) => Unit,
-      ): Unit = {
+      ): Int = {
         val outputFloats = if reduced then size else size * n
-        if n == 0 then dest.zeroFill()
+        val slot = if slots == 1 then 0 else math.floorMod(nextSlot.getAndIncrement(), slots)
+        val outBuffer = outBuffers(slot)
+        if n == 0 then dest.foreach(_.zeroFill())
         else if n > maxBatchSize then throw new IllegalArgumentException(s"$n batch elements exceed the compiled maximum of $maxBatchSize")
         else if pendingInputs > 0 then
           throw new IllegalStateException(
             s"input ${inputNames.zipWithIndex.collect { case (n, i) if !inputWritten(i) => s"'$n'" }.mkString(", ")} never written; " +
               "call writeInput before launching, or the kernel reads zeros",
           )
-        else if dest.capacity < outputFloats then
-          throw new IllegalArgumentException(s"${dest.describe} holds ${dest.capacity} floats, needs at least $outputFloats for $n elements of $size")
+        else if dest.exists(_.capacity < outputFloats) then
+          val d = dest.get
+          throw new IllegalArgumentException(s"${d.describe} holds ${d.capacity} floats, needs at least $outputFloats for $n elements of $size")
         else
           if elementParams.nonEmpty then
             fillStaging()
@@ -672,7 +770,7 @@ object ClKernel:
           // The side just written becomes the side the next launch reads.
           if stateNames.nonEmpty then readSide.set(writeSide)
           onPhase("launch", System.nanoTime())
-          dest.receive(queue, outBuffer, outputFloats)
+          dest.foreach(_.receive(queue, outBuffer, outputFloats))
           onPhase("readback", System.nanoTime())
-        ()
+        slot
       }
