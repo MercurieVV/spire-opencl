@@ -1,11 +1,13 @@
 {%
 laika.title = Start
+laika.metadata.canonicalLink = "https://mercurievv.github.io/spire-opencl/"
 %}
 
 # spire-opencl
 
-`spire-opencl` turns ordinary Spire numeric code into an OpenCL kernel by running that code once with
-symbolic values.
+`spire-opencl` is a Scala 3 library for GPU numeric computing with Typelevel Spire and OpenCL. It
+turns ordinary Spire typeclass code into an OpenCL kernel by running that code once with symbolic
+values.
 
 These pages are checked by `./mill docs.mdoc`: `scala mdoc` fences compile, and non-hardware examples
 also run. Generate the HTML site with `./mill docs.site`; mdoc runs first, then Laika renders the

@@ -1,11 +1,16 @@
 # spire-opencl
 
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.mercurievv/spire-opencl_3.svg)](https://central.sonatype.com/artifact/io.github.mercurievv/spire-opencl_3)
+[![CI](https://github.com/MercurieVV/spire-opencl/actions/workflows/ci.yml/badge.svg)](https://github.com/MercurieVV/spire-opencl/actions/workflows/ci.yml)
+[![Docs](https://github.com/MercurieVV/spire-opencl/actions/workflows/docs.yml/badge.svg)](https://mercurievv.github.io/spire-opencl/)
+[![License](https://img.shields.io/github/license/MercurieVV/spire-opencl.svg)](LICENSE)
 
-Instantiate ordinary Spire numeric code at a symbolic value type and compile the resulting expression
-tree to an OpenCL kernel.
+Scala 3 GPU computing for numerical code: instantiate ordinary Typelevel Spire typeclass programs at
+a symbolic value type, then compile the resulting expression tree to an OpenCL kernel.
 
-Main documentation: https://mercurievv.github.io/spire-opencl/
+Documentation: https://mercurievv.github.io/spire-opencl/
+
+Source: https://github.com/MercurieVV/spire-opencl
 
 ## Quickstart
 
@@ -51,6 +56,7 @@ Run tests:
 
 ## Other Features
 
+- Scala 3, Cats Effect, JOCL, and OpenCL 1.2.
 - `Expr.Const`, `Expr.Uniform`, `Expr.Param`, and `Expr.Index` cover literal, per-launch,
   per-batch-element, and per-work-item inputs.
 - `Expr.Sum` reduces across the batch dimension in the generated kernel.
@@ -58,6 +64,9 @@ Run tests:
   current device actually supports.
 - Benchmarks live in `bench/`, with generated results shown on the
   [Benchmarking](https://mercurievv.github.io/spire-opencl/benchmarking.html) page.
+
+Useful search terms: Scala GPU, OpenCL Scala, Spire numeric typeclasses, symbolic expression compiler,
+generated OpenCL kernels.
 
 ## Release
 
