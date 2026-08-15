@@ -52,6 +52,7 @@ enum UnOp(val eval: Double => Double) derives CanEqual:
   *   - `Const` — fixed when the formula is built; folded and inlined.
   *   - `Uniform` — one scalar per launch, identical for every work-item: a kernel argument.
   *   - `Param` — one scalar per **batch element** (dimension 1), read from the packed parameter buffer.
+  *   - `Input` — one scalar per **work-item** (dimension 0): an array, resident on the device, indexed by the work-item.
   *   - `Index` — the dimension-0 work-item index, as a float. Everything that varies *within* a launch is derived from this, in the IR, by the caller
   *     — the library has no notion of what dimension 0 counts.
   *   - `State` — one scalar per batch element that *persists between launches*, read at the start of a launch and rewritten at the end.
@@ -60,6 +61,17 @@ enum Expr derives CanEqual:
   case Const(v: Double)
   case Uniform(name: String)
   case Param(name: String)
+
+  /** An element of a device-resident array, at this work-item's position in dimension 0.
+    *
+    * The only value in the IR that varies *per work-item* and comes from outside — everything else that varies within a launch has to be derived from
+    * `Index`. It is what makes an ordinary array computation expressible: `a * b + c` over three arrays is three `Input`s.
+    *
+    * The array lives in device memory across launches and is written by the host separately from launching, so a caller uploads once and launches
+    * many times. That asymmetry is the point: sending the data is normally the dominant cost, and it is the one part of a launch that usually does
+    * not change between launches.
+    */
+  case Input(name: String)
   case Index
   case Bin(op: BinOp, l: Expr, r: Expr)
   case Un(op: UnOp, a: Expr)
@@ -158,12 +170,17 @@ object Expr:
 
   /** Reference interpreter. Used by tests to check the emitted kernel against the tree it came from, and as the fallback when no OpenCL device is
     * available. `env` resolves uniforms and params by name; `index` is the dimension-0 position.
+    *
+    * An `Input` resolves through the same `env`, which means the caller supplies the *element already selected* for `index` rather than the whole
+    * array. Evaluating one work-item is what this function does, and threading arrays through it would make every other case carry a parameter it has
+    * no use for.
     */
   def eval(env: String => Double, index: Double)(e: Expr): Double = e match
     case Const(v)      => v
     case Uniform(name) => env(name)
     case Param(name)   => env(name)
     case State(name)   => env(name)
+    case Input(name)   => env(name)
     case Index         => index
     case Sum(_)        => throw new IllegalArgumentException("Sum spans the batch dimension; use evalSummed")
     case Un(op, a)     => op.eval(eval(env, index)(a))
@@ -182,9 +199,15 @@ object Expr:
     case Un(_, a)     => containsSum(a)
     case _            => false
 
-  /** Whether the tree varies within a launch. A state update that does would have no single value to write back, so `Reify` rejects it. */
+  /** Whether the tree varies within a launch. A state update that does would have no single value to write back, so `Reify` rejects it.
+    *
+    * `Input` counts, and for exactly the same reason as `Index`: it is a different value in every work-item, so there is no one work-item whose
+    * answer is *the* answer. The name stays `containsIndex` because that is what varying within a launch means here — everything per-work-item is
+    * either the index or addressed by it.
+    */
   def containsIndex(e: Expr): Boolean = e match
     case Index        => true
+    case Input(_)     => true
     case Bin(_, l, r) => containsIndex(l) || containsIndex(r)
     case Un(_, a)     => containsIndex(a)
     case Sum(a)       => containsIndex(a)
@@ -209,6 +232,7 @@ object Expr:
       case Uniform(n)   => if acc.contains(n) then acc else acc :+ n
       case Param(n)     => if acc.contains(n) then acc else acc :+ n
       case State(n)     => if acc.contains(n) then acc else acc :+ n
+      case Input(n)     => if acc.contains(n) then acc else acc :+ n
       case Bin(_, l, r) => go(r, go(l, acc))
       case Un(_, a)     => go(a, acc)
       case Sum(a)       => go(a, acc)

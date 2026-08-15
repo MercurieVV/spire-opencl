@@ -13,13 +13,17 @@ import io.github.mercurievv.spireopencl.symbolic.state.{Store, VarId}
   *   - `uniforms` — one value per launch, shared by every work-item; passed as scalar kernel arguments.
   *   - `params` — one value per batch element; packed into a single buffer, element-major.
   *   - `states` — one value per batch element that survives to the next launch, with `updates` giving each cell's new value.
+  *   - `inputs` — one value per work-item: a device-resident array, one buffer each, written by the host independently of launching.
+  *
+  * `inputs` comes last so that a formula that gains one keeps every earlier argument's meaning, and every existing caller keeps compiling.
   */
 final case class Formula(
   body: Expr,
   uniforms: List[String],
   params: List[String],
   states: List[String] = Nil,
-  updates: Map[String, Expr] = Map.empty)
+  updates: Map[String, Expr] = Map.empty,
+  inputs: List[String] = Nil)
     derives CanEqual:
 
   require(
@@ -78,6 +82,30 @@ object Reify:
       ),
       uniforms,
       params,
+    )
+
+  /** As `apply`, with device-resident arrays: a third lookup whose names read one element per work-item.
+    *
+    * This is the shape ordinary array code wants — `a * b + c` over three arrays is three `Input`s, and the arrays are uploaded once and reused
+    * across launches rather than sent with each. Dimension 0 is the array, so a kernel compiled with `size = n` covers the whole thing in one launch,
+    * and the batch dimension is left free for whatever it meant before.
+    */
+  def arrays(
+    uniforms: List[String],
+    params: List[String],
+    inputs: List[String],
+  )(
+    build: (String => Expr, String => Expr, String => Expr) => Expr,
+  ): Formula =
+    Formula(
+      build(
+        lookup("uniform", uniforms, Expr.Uniform.apply),
+        lookup("param", params, Expr.Param.apply),
+        lookup("input", inputs, Expr.Input.apply),
+      ),
+      uniforms,
+      params,
+      inputs = inputs,
     )
 
   /** As `apply`, with cells that persist between launches.

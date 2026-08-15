@@ -75,6 +75,15 @@ object CodeGen:
     */
   private final case class Refs(param: String => String, state: String => String)
 
+  /** An input array is its own `__global` pointer argument rather than a slot in a shared buffer, unlike parameters.
+    *
+    * Parameters share one packed buffer because there are a handful of them per element and the upload happens every launch, so one transfer beats
+    * several. An input is the opposite: it is uploaded once and then read for many launches, so there is no per-launch transfer to amortise, and
+    * separate buffers mean the host can hand over the array it already has instead of interleaving it into a new one first — which at array sizes is
+    * itself a full pass over the data.
+    */
+  private def inputRef(name: String): String = s"$name[i]"
+
   private def slotOf(buffer: String, declared: List[String], name: String): String =
     val idx = declared.indexOf(name)
     if declared.size == 1 then s"$buffer[e]" else s"$buffer[e * ${declared.size} + $idx]"
@@ -90,7 +99,11 @@ object CodeGen:
           // Per batch element, not per work-item in dimension 0: one launch covers every element, so a parameter is a read at this element's slot.
           case Expr.Param(n) => (st, refs.param(n))
           // Read from the buffer the previous launch wrote. Every work-item in dimension 0 sees the same value; only one of them writes it back.
-          case Expr.State(n)      => (st, refs.state(n))
+          case Expr.State(n) => (st, refs.state(n))
+          /* Given a temporary rather than referenced inline, so a value used twice is one global memory read
+           * instead of two. The other leaves are already registers or a single scalar argument; this one is the
+           * only leaf that costs a trip to memory. */
+          case Expr.Input(n)      => define(e, inputRef(n), st)
           case Expr.Index         => (st, "fi")
           case Expr.Bin(op, l, r) =>
             val (st1, a) = emit(l, st, refs)
@@ -118,13 +131,16 @@ object CodeGen:
     * parameters share one packed buffer for the same reason — every extra host→device transfer costs about what the kernel does.
     */
   def apply(formula: Formula): String =
-    (formula.uniforms ++ formula.params ++ formula.states)
+    (formula.uniforms ++ formula.params ++ formula.states ++ formula.inputs)
       .find(reserved.contains)
       .foreach(n => throw new IllegalArgumentException(s"argument name '$n' is reserved by the kernel"))
     List(
       ("a uniform", "a parameter", formula.uniforms, formula.params),
       ("a uniform", "a state", formula.uniforms, formula.states),
       ("a parameter", "a state", formula.params, formula.states),
+      ("a uniform", "an input", formula.uniforms, formula.inputs),
+      ("a parameter", "an input", formula.params, formula.inputs),
+      ("a state", "an input", formula.states, formula.inputs),
     )
       .foreach: (kindA, kindB, a, b) =>
         a.find(b.contains).foreach(n => throw new IllegalArgumentException(s"'$n' is declared both as $kindA and as $kindB"))
@@ -164,7 +180,9 @@ object CodeGen:
       .map(", " + _)
       .mkString
     val paramArgs = if formula.params.isEmpty then "" else ", __global const float* params"
-    // Appended after the parameter buffer so a formula that gains state keeps every earlier argument's index.
+    // One pointer each, in declared order, so the host can bind an array it already owns without repacking.
+    val inputArgs = formula.inputs.map(n => s", __global const float* $n").mkString
+    // Appended after the buffers so a formula that gains state keeps every earlier argument's index.
     val stateArgs = if formula.states.isEmpty then "" else ", __global const float* stateIn, __global float* stateOut"
     // One float per batch element, scoped to the work-group, which the host sizes at launch.
     val localArgs = if formula.isReduced then ", __local float* acc" else ""
@@ -191,7 +209,7 @@ object CodeGen:
            |$perElement
            |  out[e * n + i] = $result;""".stripMargin
 
-    s"""__kernel void $kernelName(__global float* out$scalars$paramArgs$stateArgs$localArgs) {
+    s"""__kernel void $kernelName(__global float* out$scalars$paramArgs$inputArgs$stateArgs$localArgs) {
        |$preamble
        |$core
        |}

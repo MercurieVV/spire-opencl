@@ -19,6 +19,9 @@ trait Kernel[F[_]]:
   /** How many batch elements one launch can carry. */
   def maxBatch: Int
 
+  /** The dimension-0 extent this was compiled for: work-items per batch element, and the length of every input array. */
+  def size: Int
+
   /** Whether this kernel reduces over the batch itself. A reduced kernel writes `size` floats — the total — instead of one slice per element. */
   def reduced: Boolean
 
@@ -82,6 +85,45 @@ trait Kernel[F[_]]:
     onPhase: (String, Long) => Unit = (_, _) => (),
   ): Unit
 
+  /** Launches, then hands `use` a **mapped** view of the output instead of copying it into caller memory.
+    *
+    * The ordinary readback is a device-to-host copy of every output float, and once the input arrays stay resident it is the only cost a launch still
+    * has. Mapping asks the driver for a pointer to the results where they already are. On a device that shares physical memory with the host — every
+    * Apple Silicon GPU, every integrated one — there is nothing to copy and the map is close to free; on a discrete device the driver still
+    * transfers, but out of memory it can DMA from directly.
+    *
+    * Requires the kernel to have been compiled with `hostVisibleOutput = true`; the allocation flag that makes mapping cheap has to be chosen when
+    * the buffer is created, and it is not free on every device, so it is the caller's decision rather than a default.
+    *
+    * The buffer is valid only for the duration of `use` — it is unmapped on the way out, and the device may reuse the memory for the next launch.
+    * Read what is needed, or copy it, before returning. `use` is given a read-only view over exactly the floats this launch produced.
+    */
+  def renderBatchMappedUnsafe[A](
+    uniforms: Map[String, Float],
+    batch: Seq[Map[String, Float]],
+    onPhase: (String, Long) => Unit = (_, _) => (),
+  )(
+    use: java.nio.FloatBuffer => A,
+  ): A
+
+  /** Fills a declared input array in device memory. `data` must hold at least [[size]] floats; anything beyond that is ignored.
+    *
+    * Separate from launching, which is the whole point: the array stays on the device and is read by every launch until it is written again. A caller
+    * whose data does not change between launches uploads it once, and the per-launch transfer that would otherwise dominate disappears entirely. A
+    * caller whose data does change simply writes again — no worse than sending it with the launch.
+    *
+    * Blocking, because it is not on the per-launch path and a caller wants to know the data is there before launching against it.
+    */
+  def writeInput(name: String, data: Array[Float]): F[Unit]
+
+  /** [[writeInput]] with no effect wrapper. */
+  def writeInputUnsafe(name: String, data: Array[Float]): Unit
+
+  /** [[writeInputUnsafe]] from native memory, for data that is already outside the JVM heap. Must be **direct**; reads `size` floats from the
+    * buffer's current position and leaves the position where it was.
+    */
+  def writeInputFromUnsafe(name: String, data: java.nio.FloatBuffer): Unit
+
   /** The persistent cells as the last launch left them, element-major: element `e`'s cells occupy `out[e * states .. e * states + states)`, in
     * declared order. For tests and diagnosis — the audio path never reads state back, which is the point of keeping it on the device.
     */
@@ -102,26 +144,41 @@ object ClKernel:
     */
   private trait Destination:
     def capacity: Int
-    def pointer: Pointer
     def zeroFill(): Unit
+
+    /** How the finished results reach the caller, once the kernel is enqueued. Blocks until they are there.
+      *
+      * A method rather than a pointer for the launch body to read, because not every destination is a copy: mapping the output asks the driver for
+      * the results where they already are, and there is no caller-side address to hand over.
+      */
+    def receive(queue: cl_command_queue, buffer: cl_mem, floats: Int): Unit
 
     /** Names the shape in the too-small error, which is otherwise indistinguishable between the two. */
     def describe: String
 
   private object Destination:
 
+    /** The ordinary device-to-host copy, shared by the array and native-buffer shapes. */
+    private def read(queue: cl_command_queue, buffer: cl_mem, floats: Int, into: Pointer): Unit =
+      clEnqueueReadBuffer(queue, buffer, CL_TRUE, 0, (Sizeof.cl_float * floats).toLong, into, 0, null, null)
+      ()
+
     def heap(out: Array[Float]): Destination = new Destination:
       def capacity: Int = out.length
-      def pointer: Pointer = Pointer.to(out)
       def zeroFill(): Unit = java.util.Arrays.fill(out, 0.0f)
       def describe: String = "output array"
+
+      def receive(queue: cl_command_queue, buffer: cl_mem, floats: Int): Unit =
+        read(queue, buffer, floats, Pointer.to(out))
 
     /** Writes from the buffer's current position and leaves the position there: the caller aims successive launches at slices of one buffer, and a
       * side effect on the position would silently make the second launch overwrite the first.
       */
     def native(out: java.nio.FloatBuffer): Destination = new Destination:
       def capacity: Int = out.remaining
-      def pointer: Pointer = Pointer.toBuffer(out)
+
+      def receive(queue: cl_command_queue, buffer: cl_mem, floats: Int): Unit =
+        read(queue, buffer, floats, Pointer.toBuffer(out))
 
       def zeroFill(): Unit =
         val base = out.position()
@@ -132,6 +189,29 @@ object ClKernel:
           i += 1
 
       def describe: String = "output buffer"
+
+    /** No copy at all: the driver is asked for the results where they already are, `use` reads them there, and the mapping is released.
+      *
+      * `use` runs inside `receive` rather than after it because the pointer is only valid while mapped — returning it would hand the caller memory
+      * the next launch is free to overwrite. Unmapping in a `finally` so a throwing `use` does not leak the mapping and wedge the queue.
+      */
+    def mapped[A](use: java.nio.FloatBuffer => A): Destination & (() => A) = new Destination with (() => A):
+      private var result: Option[A] = None
+
+      def capacity: Int = Int.MaxValue
+      def describe: String = "mapped output"
+      def apply(): A = result.getOrElse(throw new IllegalStateException("launch produced no mapped result"))
+
+      /** An empty batch is silence: `use` still runs, over no floats, so a caller gets the same shape of answer either way. */
+      def zeroFill(): Unit = result = Some(use(java.nio.FloatBuffer.allocate(0).asReadOnlyBuffer))
+
+      def receive(queue: cl_command_queue, buffer: cl_mem, floats: Int): Unit =
+        val bytes = (Sizeof.cl_float * floats).toLong
+        val mapping = clEnqueueMapBuffer(queue, buffer, CL_TRUE, CL_MAP_READ, 0, bytes, 0, null, null, null)
+        try result = Some(use(mapping.order(java.nio.ByteOrder.nativeOrder).asFloatBuffer.asReadOnlyBuffer))
+        finally
+          clEnqueueUnmapMemObject(queue, buffer, mapping, 0, null, null)
+          ()
 
   final case class Device(platform: cl_platform_id, device: cl_device_id, name: String)
 
@@ -201,14 +281,32 @@ object ClKernel:
     *
     * `size` is the dimension-0 extent of a launch: how many work-items the kernel runs per batch element.
     */
-  def compile[F[_]: Sync](formula: Formula, size: Int, maxBatchSize: Int = DefaultMaxBatch): Resource[F, Kernel[F]] =
-    Resource.eval(defaultDevice[F]).flatMap(compileOn(_, formula, size, maxBatchSize))
+  def compile[F[_]: Sync](
+    formula: Formula,
+    size: Int,
+    maxBatchSize: Int = DefaultMaxBatch,
+    hostVisibleOutput: Boolean = false,
+  ): Resource[F, Kernel[F]] =
+    Resource.eval(defaultDevice[F]).flatMap(compileOn(_, formula, size, maxBatchSize, hostVisibleOutput))
 
-  def compileOn[F[_]: Sync](dev: Device, formula: Formula, size: Int, maxBatchSize: Int = DefaultMaxBatch): Resource[F, Kernel[F]] =
+  /** `hostVisibleOutput` allocates the output where the host can map it, which is what makes [[Kernel.renderBatchMappedUnsafe]] cheap. Off by
+    * default: on a device with its own memory it can place the buffer somewhere the kernel writes to more slowly, and a caller who reads back the
+    * ordinary way would pay for a facility it never uses.
+    */
+  def compileOn[F[_]: Sync](
+    dev: Device,
+    formula: Formula,
+    size: Int,
+    maxBatchSize: Int = DefaultMaxBatch,
+    hostVisibleOutput: Boolean = false,
+  ): Resource[F, Kernel[F]] =
     val src = CodeGen(formula)
     val elementParams = formula.params
     val uniformNames = formula.uniforms
     val stateNames = formula.states
+    val inputNames = formula.inputs
+    // The compile parameter, captured before the returned kernel shadows the name with its own member.
+    val dim0 = size
 
     def acquire[A](f: => A)(release: A => Unit): Resource[F, A] =
       Resource.make(Sync[F].delay(f))(a => Sync[F].delay(release(a)))
@@ -244,7 +342,7 @@ object ClKernel:
       outBuffer <- acquire(
         clCreateBuffer(
           context,
-          CL_MEM_WRITE_ONLY,
+          if hostVisibleOutput then CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR else CL_MEM_WRITE_ONLY,
           (Sizeof.cl_float * size * maxBatchSize).toLong,
           null,
           null,
@@ -260,6 +358,24 @@ object ClKernel:
           null,
         ),
       )(clReleaseMemObject)
+      /* One buffer per declared input, each the dimension-0 extent — an input is per work-item, so its length has
+       * nothing to do with the batch. Zero-filled at acquire so that a formula launched before its arrays are
+       * written reads defined zeros rather than whatever the driver handed back; `pendingInputs` below turns that
+       * into an error instead, but the zeros mean the failure mode is deterministic either way. */
+      inputBuffers <- acquire {
+        val zeros = Pointer.to(new Array[Float](size))
+        inputNames
+          .map(_ =>
+            clCreateBuffer(
+              context,
+              CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+              (Sizeof.cl_float * size).toLong,
+              zeros,
+              null,
+            ),
+          )
+          .toArray
+      }(_.foreach(clReleaseMemObject))
       /* Two of them, swapped after every launch, because a launch reads state in every dimension-0 work-group and
        * writes it in one: reads and the write live in different work-groups, OpenCL 1.2 has no barrier across them,
        * and writing in place would therefore be a race. The pair costs one allocation at compile and a pointer swap
@@ -280,7 +396,62 @@ object ClKernel:
     yield new Kernel[F]:
       val source: String = src
       val maxBatch: Int = maxBatchSize
+      val size: Int = dim0
       val reduced: Boolean = formula.isReduced
+
+      /** Inputs not yet written. An unwritten array reads as zeros, which is a silent wrong answer rather than a loud one — so the first launch
+        * refuses instead. One int comparison per launch, and only when the formula has inputs at all.
+        */
+      private var pendingInputs = inputNames.size
+
+      private val inputWritten = new Array[Boolean](inputNames.size)
+
+      private def inputSlot(name: String): Int =
+        val idx = inputNames.indexOf(name)
+        if idx < 0 then throw new IllegalArgumentException(s"undeclared input '$name'; declared: $inputNames")
+        else idx
+
+      private def markWritten(idx: Int): Unit =
+        if !inputWritten(idx) then
+          inputWritten(idx) = true
+          pendingInputs -= 1
+
+      def writeInput(name: String, data: Array[Float]): F[Unit] = Sync[F].delay(writeInputUnsafe(name, data))
+
+      def writeInputUnsafe(name: String, data: Array[Float]): Unit =
+        val idx = inputSlot(name)
+        if data.length < size then throw new IllegalArgumentException(s"input '$name' is ${data.length} floats, need $size")
+        else
+          clEnqueueWriteBuffer(
+            queue,
+            inputBuffers(idx),
+            CL_TRUE,
+            0,
+            (Sizeof.cl_float * size).toLong,
+            Pointer.to(data),
+            0,
+            null,
+            null,
+          )
+          markWritten(idx)
+
+      def writeInputFromUnsafe(name: String, data: java.nio.FloatBuffer): Unit =
+        val idx = inputSlot(name)
+        if !data.isDirect then throw new IllegalArgumentException("input buffer must be direct: JOCL cannot take a pointer into the JVM heap")
+        else if data.remaining < size then throw new IllegalArgumentException(s"input '$name' has ${data.remaining} floats remaining, need $size")
+        else
+          clEnqueueWriteBuffer(
+            queue,
+            inputBuffers(idx),
+            CL_TRUE,
+            0,
+            (Sizeof.cl_float * size).toLong,
+            Pointer.toBuffer(data),
+            0,
+            null,
+            null,
+          )
+          markWritten(idx)
 
       /** Direct, so the parameter upload can be non-blocking: JOCL rejects a non-blocking transfer from a heap array, and a blocking one costs a full
         * device round trip — measurably more than the kernel itself at small sizes.
@@ -365,6 +536,23 @@ object ClKernel:
             onPhase,
           )
 
+      def renderBatchMappedUnsafe[A](
+        uniforms: Map[String, Float],
+        batch: Seq[Map[String, Float]],
+        onPhase: (String, Long) => Unit = (_, _) => (),
+      )(
+        use: java.nio.FloatBuffer => A,
+      ): A =
+        if !hostVisibleOutput then
+          throw new IllegalStateException(
+            "mapping the output needs a kernel compiled with hostVisibleOutput = true; " +
+              "without it the driver has nothing host-visible to map and would copy anyway",
+          )
+        else
+          val dest = Destination.mapped(use)
+          launch(uniforms, batch.size, () => fillFromMaps(batch), dest, onPhase)
+          dest()
+
       def renderBatchIntoUnsafe(
         uniforms: Map[String, Float],
         batch: Seq[Map[String, Float]],
@@ -400,6 +588,11 @@ object ClKernel:
         val outputFloats = if reduced then size else size * n
         if n == 0 then dest.zeroFill()
         else if n > maxBatchSize then throw new IllegalArgumentException(s"$n batch elements exceed the compiled maximum of $maxBatchSize")
+        else if pendingInputs > 0 then
+          throw new IllegalStateException(
+            s"input ${inputNames.zipWithIndex.collect { case (n, i) if !inputWritten(i) => s"'$n'" }.mkString(", ")} never written; " +
+              "call writeInput before launching, or the kernel reads zeros",
+          )
         else if dest.capacity < outputFloats then
           throw new IllegalArgumentException(s"${dest.describe} holds ${dest.capacity} floats, needs at least $outputFloats for $n elements of $size")
         else
@@ -434,6 +627,11 @@ object ClKernel:
           // A reduced kernel loops over the batch itself, so the count is an argument rather than an NDRange dimension.
           if reduced then bind(Sizeof.cl_int.toLong, Pointer.to(Array(n)))
           if elementParams.nonEmpty then bind(Sizeof.cl_mem.toLong, Pointer.to(paramBuffer))
+          // In declared order, matching CodeGen's argument list. Nothing is transferred here: the arrays are already resident.
+          var inputIdx = 0
+          while inputIdx < inputBuffers.length do
+            bind(Sizeof.cl_mem.toLong, Pointer.to(inputBuffers(inputIdx)))
+            inputIdx += 1
           val writeSide = 1 - readSide.get
           if stateNames.nonEmpty then
             /* Elements past this launch's batch are not written by the kernel, and the buffer it writes into holds
@@ -474,17 +672,7 @@ object ClKernel:
           // The side just written becomes the side the next launch reads.
           if stateNames.nonEmpty then readSide.set(writeSide)
           onPhase("launch", System.nanoTime())
-          clEnqueueReadBuffer(
-            queue,
-            outBuffer,
-            CL_TRUE,
-            0,
-            (Sizeof.cl_float * outputFloats).toLong,
-            dest.pointer,
-            0,
-            null,
-            null,
-          )
+          dest.receive(queue, outBuffer, outputFloats)
           onPhase("readback", System.nanoTime())
         ()
       }
