@@ -9,10 +9,17 @@ object BenchmarkResults:
 
   private final case class Row(benchmark: String, params: Map[String, String], score: Double, error: Double)
 
+  /** Per-launch host-side phase split, from the `PhaseCounters` aux counters `ClKernel.launch` emits: nanosecond totals over an iteration plus the
+    * launch count to divide by. `readback` is not device time — the upload and NDRange enqueue are non-blocking, so almost all device time lands
+    * there as the blocking wait, not as processing.
+    */
+  private final case class Phases(uploadUs: Double, launchUs: Double, readbackUs: Double)
+
   def main(args: Array[String]): Unit =
     val jsonPath = Path.of(args(0))
     val markdownPath = Path.of(args(1))
-    val rows = read[ujson.Value](Files.readString(jsonPath)).arr.toSeq.map { value =>
+    val raw = read[ujson.Value](Files.readString(jsonPath)).arr.toSeq
+    val rows = raw.map { value =>
       val obj = value.obj
       val metric = obj("primaryMetric").obj
       val params = obj.get("params").fold(Map.empty[String, String])(_.obj.view.mapValues(_.str).toMap)
@@ -23,16 +30,32 @@ object BenchmarkResults:
         metric("scoreError").num,
       )
     }
+    val phases = raw.flatMap { value =>
+      val obj = value.obj
+      val name = obj("benchmark").str.split('.').takeRight(2).mkString(".")
+      val params = obj.get("params").fold(Map.empty[String, String])(_.obj.view.mapValues(_.str).toMap)
+      for
+        sm       <- obj.get("secondaryMetrics").map(_.obj)
+        upload   <- sm.get("uploadNs")
+        launch   <- sm.get("launchNs")
+        readback <- sm.get("readbackNs")
+        ops      <- sm.get("ops")
+      yield (name, params) -> Phases(
+        upload("score").num / ops("score").num / 1e3,
+        launch("score").num / ops("score").num / 1e3,
+        readback("score").num / ops("score").num / 1e3,
+      )
+    }.toMap
 
     val markdown = Files.readString(markdownPath)
-    val generated = render(jsonPath.getFileName.toString, rows)
+    val generated = render(jsonPath.getFileName.toString, rows, phases)
     Files.writeString(
       markdownPath,
       markdown.replace("<!-- BENCHMARK_RESULTS -->", generated),
       StandardCharsets.UTF_8,
     )
 
-  private def render(sourceName: String, rows: Seq[Row]): String =
+  private def render(sourceName: String, rows: Seq[Row], phases: Map[(String, Map[String, String]), Phases]): String =
     List(
       s"Generated from `bench/results/$sourceName`. Scores are `us/op`, lower is better. `+/-` is JMH's 99.9% confidence half-width.",
       "",
@@ -166,6 +189,32 @@ object BenchmarkResults:
       ),
       "",
       "The OpenCL row is nearly flat: transfer plus launch dominates, while extra multiply-add levels are cheap on the device.",
+      "",
+      "### Host-side phase split, 10^7 floats",
+      "",
+      "Per-launch cost broken into uploading parameters to the device, the kernel launch itself, and reading the result back. `readback` is not " +
+        "device compute time: the upload and launch enqueue asynchronously, so almost all device time is absorbed there as the blocking wait.",
+      "",
+      table(
+        Seq("row", "upload us/op", "launch us/op", "readback us/op"),
+        Seq(
+          phaseEntry(phases, "ElementwiseBench.openclInput", "10000000", "OpenCL, resident arrays"),
+          phaseEntry(
+            phases,
+            "ElementwiseBench.openclInputMapped",
+            "10000000",
+            "OpenCL, resident arrays + mapped output",
+          ),
+          phaseEntry(phases, "ElementwiseBench.openclPacked", "10000000", "OpenCL, packed params"),
+          phaseEntry(
+            phases,
+            "ElementwiseBench.openclPacking",
+            "10000000",
+            "OpenCL, packed params + interleave",
+          ),
+          phaseEntry(phases, "GeneratorBench.openclChain", "10000000", "Generator, chain depth 8"),
+        ),
+      ),
     ).mkString("\n")
 
   private def table(header: Seq[String], rows: Seq[Seq[String]]): String =
@@ -173,6 +222,17 @@ object BenchmarkResults:
 
   private def matchRow(benchmark: String, param: String)(row: Row): Boolean =
     row.benchmark == benchmark && row.params.values.exists(_ == param)
+
+  private def phaseEntry(
+    phases: Map[(String, Map[String, String]), Phases],
+    benchmark: String,
+    param: String,
+    label: String,
+  ): Seq[String] =
+    val found = phases
+      .collectFirst { case ((name, params), p) if name == benchmark && params.values.exists(_ == param) => p }
+      .getOrElse(sys.error(s"missing phase counters for: $benchmark / $param"))
+    Seq(label, round(found.uploadUs), round(found.launchUs), round(found.readbackUs))
 
   private def find(rows: Seq[Row], benchmark: String, param: String): Row =
     rows.find(matchRow(benchmark, param)).getOrElse(sys.error(s"missing benchmark result: $benchmark / $param"))
