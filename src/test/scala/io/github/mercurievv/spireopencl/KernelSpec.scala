@@ -192,16 +192,39 @@ object KernelSpec extends SimpleIOSuite:
     }
   }
 
+  test("Reify.outTyped + ClKernel.compileT2 + TypedKernel2.renderT: a program returning Out[V] directly reifies without wrapping") {
+    // Mirrors docs/var-operations.md's richProgram/richFormula end to end: the domain function already returns
+    // Answer[V], so `build` in Reify.outTyped just calls it, with nothing to wrap on either side.
+    import io.github.mercurievv.spireopencl.opencl.renderT
+    import spire.algebra.{Field, NRoot, Trig}
+    import spire.implicits.*
+    import spire.math.{sin, sqrt}
+    case class Point[V](x: V, y: V, z: V)
+    case class Answer[V](value: V)
+    def richProgram[V: {Field, NRoot, Trig}](point: Point[V]): Answer[V] =
+      val ratio = (point.x - point.y) / (point.z + 1)
+      Answer(sqrt(ratio * ratio) + sin(point.y))
+    val richFormula = Reify.outTyped[Point, Answer](uniforms = Nil)((_, point) => richProgram(point))
+    ClKernel.compileT2[IO, Point, Answer](richFormula, size = 1).use { kernel =>
+      IO {
+        val expected = richProgram(Point[Double](3.0, 1.0, 4.0)).value
+        val actual = kernel.renderT(Point[Float](3.0f, 1.0f, 4.0f)).value
+        expect(math.abs(actual - expected) < 1e-4)
+      }
+    }
+  }
+
   test("Reify.outTyped + ClKernel.compileT2 + TypedKernel2.renderT launch one kernel producing several named outputs") {
     import io.github.mercurievv.spireopencl.opencl.renderT
+    import spire.algebra.Field
+    import spire.implicits.*
     case class Point[V](x: V, y: V, z: V)
     case class Result[V](sum: V, product: V)
-    val resultFormula = Reify.outTyped[Point, Result](uniforms = Nil) { (_, pt) =>
-      Result(
-        sum     = Expr.add(Expr.add(pt.x, pt.y), pt.z),
-        product = Expr.mul(Expr.mul(pt.x, pt.y), pt.z),
-      )
-    }
+    // Mirrors docs/var-operations.md's `stats`: a plain Spire-polymorphic function returning Out[V] directly, reified
+    // by calling it — no per-field Expr construction and no wrapping at the Reify.outTyped call site.
+    def stats[V: Field](pt: Point[V]): Result[V] =
+      Result(sum = pt.x + pt.y + pt.z, product = pt.x * pt.y * pt.z)
+    val resultFormula = Reify.outTyped[Point, Result](uniforms = Nil)((_, pt) => stats(pt))
     ClKernel.compileT2[IO, Point, Result](resultFormula, size = 1).use { kernel =>
       IO {
         val result = kernel.renderT(Point[Float](3.0f, 1.0f, 4.0f))
