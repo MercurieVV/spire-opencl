@@ -147,6 +147,21 @@ object KernelSpec extends SimpleIOSuite:
     }
   }
 
+  test("Reify[F] + ClKernel.compileT + TypedKernel.renderUnsafeT launch a case class of params typesafely") {
+    import io.github.mercurievv.spireopencl.opencl.renderUnsafeT
+    case class Point[V](x: V, y: V, z: V)
+    val pointFormula = Reify[Point](uniforms = Nil) { (_, pt) =>
+      Expr.add(Expr.add(pt.x, pt.y), pt.z)
+    }
+    ClKernel.compileT[IO, Point](pointFormula, size = 1).use { kernel =>
+      IO {
+        val out = new Array[Float](1)
+        kernel.renderUnsafeT(Point[Float](3.0f, 1.0f, 4.0f), out)
+        expect(out(0) == 8.0f)
+      }
+    }
+  }
+
   test("a formula with no parameters at all still compiles and runs") {
     val constant = Reify(List("dx"), Nil)((uniform, _) => Expr.mul(Expr.Index, uniform("dx")))
     ClKernel.compile[IO](constant, size, 1).use { kernel =>

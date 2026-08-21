@@ -831,6 +831,17 @@ extension [F[_]](kernel: Kernel[F])
     val params = kernel.paramNames.map(n => n -> floatField(n)).toMap
     kernel.renderUnsafe(uniforms, params, out)
 
+/** As [[Kernel.writeInputUnsafe]], but one call for every declared array instead of one per name — `writeInputsT(Point(xs, ys, zs))` for
+  * `case class Point[V](x: V, y: V, z: V)` is `writeInputUnsafe("x", xs); writeInputUnsafe("y", ys); writeInputUnsafe("z", zs)`.
+  *
+  * Untyped for the same reason [[Kernel.renderUnsafeT]] is: nothing here ties `In` to the formula the kernel was compiled from. Prefer
+  * [[ClKernel.compileT]] + [[TypedKernel.writeInputsT]], built from `Reify.arraysTyped[F]`, where `In` is fixed to the formula's own declared inputs.
+  */
+extension [F[_]](kernel: Kernel[F])
+
+  inline def writeInputsT[In[_]](data: In[Array[Float]])(using Mirror.ProductOf[In[String]]): Unit =
+    FieldLabels.read[In, Array[Float]](data).foreach { case (name, arr) => kernel.writeInputUnsafe(name, arr) }
+
 /** A `Kernel[F]` compiled from a `TypedFormula[Args]`, still carrying `Args` — see [[ClKernel.compileT]]. Everything but the launch call stays on the
   * plain `Kernel`, reachable via `.kernel`: batching, arrays, state readback, and the rest neither know nor need `Args`.
   */
@@ -849,3 +860,9 @@ extension [F[_], Args[_]](kernel: TypedKernel[F, Args])
     Mirror.ProductOf[Args[Float]],
   ): Unit =
     kernel.kernel.renderUnsafeT[Args](args, out)
+
+  /** [[Kernel.writeInputsT]] pinned to the `Args` this kernel was compiled for — see [[ClKernel.compileT]] and `Reify.arraysTyped`. A `Point[Array[
+    * Float]]` built for a different `TypedFormula` is a type error here rather than a name that happens, or fails, to line up.
+    */
+  inline def writeInputsT(data: Args[Array[Float]])(using Mirror.ProductOf[Args[String]]): Unit =
+    kernel.kernel.writeInputsT[Args](data)

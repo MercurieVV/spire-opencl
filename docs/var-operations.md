@@ -22,45 +22,85 @@ richProgram(Point[Double](3.0, 1.0, 4.0))
 ```
 
 Reifying it still needs one `Expr` per field, but `Reify[Point]` reads `params` off `Point`'s own field labels instead of
-declaring `"x", "y", "z"` separately and naming them again through a lookup:
+declaring `"x", "y", "z"` separately and naming them again through a lookup. The result is a `TypedFormula[Point]`, not a
+bare `Formula` — the same typing `Reify.statefulVarTyped` gives a stateful cell, below:
 
 ```scala mdoc:silent
-import io.github.mercurievv.spireopencl.symbolic.{Expr, Formula, Reify, instances}
+import io.github.mercurievv.spireopencl.symbolic.{Expr, Reify, TypedFormula, instances}
 import instances.given
 
-val richFormula: Formula = Reify[Point](uniforms = Nil) { (_, point) =>
+val richFormula: TypedFormula[Point] = Reify[Point](uniforms = Nil) { (_, point) =>
   richProgram(point)
 }
 ```
 
 ```scala mdoc
-richFormula.params
+richFormula.formula.params
 ```
 
 `Point`'s field order is the binding order `params` declares on `Formula` — `Reify[Point]` reads both from the same place, so
 they can't drift apart. `Reify.paramsAs[Point](p)` is still there for a formula whose params aren't all one case class, or
 where `build` wants the raw lookup for other reasons.
 
-`Reify[Point]` still returns a bare `Formula`, so it launches like any other — params by name, no `Args` type pin:
+`ClKernel.compileT` + `TypedKernel.renderUnsafeT` launch it with a `Point[Float]` directly — no `Map`, and no other case
+class's `Point`-shaped lookalike will typecheck here:
 
 ```scala mdoc:compile-only
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import io.github.mercurievv.spireopencl.opencl.ClKernel
+import io.github.mercurievv.spireopencl.opencl.{ClKernel, renderUnsafeT}
 
 val richResult: Float =
-  ClKernel.compile[IO](richFormula, size = 1, maxBatchSize = 1).use { kernel =>
+  ClKernel.compileT[IO, Point](richFormula, size = 1, maxBatchSize = 1).use { kernel =>
     IO {
       val out = new Array[Float](1)
-      kernel.renderUnsafe(
-        uniforms = Map.empty,
-        params = Map("x" -> 3.0f, "y" -> 1.0f, "z" -> 4.0f),
-        out = out,
-      )
+      kernel.renderUnsafeT(Point[Float](3.0f, 1.0f, 4.0f), out)
       out(0)
     }
   }.unsafeRunSync()
 ```
+
+## Arrays of a case class
+
+`richProgram` also runs elementwise over device-resident arrays — one array per field instead of one float. `Reify.arraysTyped[Point]`
+is the array analogue of `Reify[Point]`: it declares one input per field of `Point` and hands `build` the filled `Point[Expr]`, so the
+same `richProgram(point)` reifies unchanged:
+
+```scala mdoc:silent
+val richArrayFormula: TypedFormula[Point] = Reify.arraysTyped[Point](uniforms = Nil, params = Nil) { (_, _, point) =>
+  richProgram(point)
+}
+```
+
+```scala mdoc
+richArrayFormula.formula.inputs
+```
+
+`TypedKernel.writeInputsT` takes a `Point[Array[Float]]` — one array per field, matched by name — instead of one
+`writeInputUnsafe` call per array:
+
+```scala mdoc:compile-only
+import cats.effect.IO
+import cats.effect.unsafe.implicits.global
+import io.github.mercurievv.spireopencl.opencl.{ClKernel, writeInputsT}
+
+val n = 1024
+val richArrayResult: Array[Float] =
+  ClKernel.compileT[IO, Point](richArrayFormula, size = n, maxBatchSize = 1).use { kernel =>
+    IO {
+      kernel.writeInputsT(Point[Array[Float]](
+        x = Array.fill(n)(3.0f),
+        y = Array.fill(n)(1.0f),
+        z = Array.fill(n)(4.0f),
+      ))
+      val out = new Array[Float](n)
+      kernel.kernel.renderBatchUnsafe(Map.empty, Seq(Map.empty), out)
+      out
+    }
+  }.unsafeRunSync()
+```
+
+Every element answers the same as the single-point launch above, since every element was given the same `x`, `y`, `z`.
 
 ## Stateful cells
 

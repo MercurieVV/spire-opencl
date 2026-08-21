@@ -120,6 +120,12 @@ object ExprSpec extends SimpleIOSuite:
     expect(formula.body == Expr.add(Expr.add(Expr.Param("x"), Expr.Param("y")), Expr.Param("z")))
   }
 
+  pureTest("Reify[F] reads params off F's own field labels and returns a TypedFormula[F]") {
+    val typed = Reify[Point](uniforms = Nil)((_, pt) => Expr.add(Expr.add(pt.x, pt.y), pt.z))
+    expect(typed.formula.params == List("x", "y", "z")) &&
+    expect(typed.formula.body == Expr.add(Expr.add(Expr.Param("x"), Expr.Param("y")), Expr.Param("z")))
+  }
+
   pureTest("summed is idempotent and scaledBy lands above the reduction") {
     val formula = Reify(Nil, List("v"))((_, param) => param("v")).summed
     expect(formula.summed == formula) &&

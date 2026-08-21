@@ -67,6 +67,22 @@ object InputSpec extends SimpleIOSuite:
     )
   }
 
+  test("writeInputsT splits one case class of arrays into per-name writes, typed to the formula it built") {
+    import io.github.mercurievv.spireopencl.opencl.writeInputsT
+    case class Abc[V](a: V, b: V, c: V)
+    val typedFormula = Reify.arraysTyped[Abc](Nil, Nil)((_, _, abc) => program(abc.a, abc.b, abc.c))
+    val (a, b, c) = (data(3), data(5), data(7))
+    val expected = Array.tabulate(n)(i => program[Float](a(i), b(i), c(i)))
+    ClKernel.compileT[IO, Abc](typedFormula, size = n, maxBatchSize = 1).use { kernel =>
+      IO {
+        kernel.writeInputsT(Abc(a, b, c))
+        val out = new Array[Float](n)
+        kernel.kernel.renderBatchUnsafe(Map.empty, Seq(Map.empty), out)
+        expect(out.toList == expected.toList)
+      }
+    }
+  }
+
   test("a * b + c over three arrays gives the same floats as the same program on the JVM") {
     val (a, b, c) = (data(3), data(5), data(7))
     val expected = Array.tabulate(n)(i => program[Float](a(i), b(i), c(i)))

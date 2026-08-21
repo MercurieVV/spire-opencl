@@ -101,6 +101,9 @@ object Reify:
   /** As `apply`, but `params` is read off a case class's own field labels instead of given as a list — `Reify[Point](uniforms = Nil) { (_, point) =>
     * richProgram(point) }` declares `params = List("x", "y", "z")` and builds `Point[Expr]` for `case class Point[V](x: V, y: V, z: V)`, both from
     * `Point` alone, instead of naming `"x", "y", "z"` once for `Formula` and again through `paramsAs`.
+    *
+    * The result is a `TypedFormula[F]`, not a bare `Formula`, so `ClKernel.compileT[Eff, F]` and `TypedKernel.renderUnsafeT` are pinned to this same
+    * `F` — a launch built for some other case class fails to compile rather than reading whichever of its fields happens to share a name.
     */
   inline def apply[F[_]](
     uniforms: List[String],
@@ -108,15 +111,17 @@ object Reify:
     build: (String => Expr, F[Expr]) => Expr,
   )(using Mirror.ProductOf[F[String]],
     Mirror.ProductOf[F[Expr]],
-  ): Formula =
+  ): TypedFormula[F] =
     val params = FieldLabels.namesOf[F]
-    Formula(
-      build(
-        lookup("uniform", uniforms, Expr.Uniform.apply),
-        FieldLabels.fill[F, Expr](lookup("param", params, Expr.Param.apply)),
+    TypedFormula(
+      Formula(
+        build(
+          lookup("uniform", uniforms, Expr.Uniform.apply),
+          FieldLabels.fill[F, Expr](lookup("param", params, Expr.Param.apply)),
+        ),
+        uniforms,
+        params,
       ),
-      uniforms,
-      params,
     )
 
   /** As `apply`, with device-resident arrays: a third lookup whose names read one element per work-item.
@@ -162,6 +167,35 @@ object Reify:
       lookup("state", states, Expr.State.apply),
     )
     Formula(body, uniforms, params, states, updates)
+
+  /** As `arrays`, but `inputs` is read off a case class's own field labels instead of given as a list — the array analogue of `apply[F]`. For
+    * `case class Point[V](x: V, y: V, z: V)`, `Reify.arraysTyped[Point](uniforms = Nil, params = Nil) { (_, _, point) => richProgram(point) }`
+    * declares one device-resident array per field, `x`/`y`/`z`, and hands `build` the filled `Point[Expr]` instead of three named `Expr.Input`s.
+    *
+    * The result is a `TypedFormula[F]`, so `TypedKernel.writeInputsT` can take a `Point[Array[Float]]` — one array per field, matched by name to the
+    * same fields this declared — instead of one `writeInputUnsafe` call per array.
+    */
+  inline def arraysTyped[F[_]](
+    uniforms: List[String],
+    params: List[String],
+  )(
+    build: (String => Expr, String => Expr, F[Expr]) => Expr,
+  )(using Mirror.ProductOf[F[String]],
+    Mirror.ProductOf[F[Expr]],
+  ): TypedFormula[F] =
+    val inputs = FieldLabels.namesOf[F]
+    TypedFormula(
+      Formula(
+        build(
+          lookup("uniform", uniforms, Expr.Uniform.apply),
+          lookup("param", params, Expr.Param.apply),
+          FieldLabels.fill[F, Expr](lookup("input", inputs, Expr.Input.apply)),
+        ),
+        uniforms,
+        params,
+        inputs = inputs,
+      ),
+    )
 
   /** As `stateful`, but the cells come from a `Var`/`.at`-composed program over `Store[Expr]` instead of a hand-written `(Expr, Map[String, Expr])`
     * pair — the bridge from the algebra in `symbolic.state` to a device-resident cell, so a caller does not re-derive it per timbre.
