@@ -47,29 +47,35 @@ import spire.algebra.{Field, Trig}
 import spire.implicits.*
 import spire.math.sin
 
-// Plain Spire code: no OpenCL imports and no library-specific DSL.
-def program[V: {Field, Trig}](b: V, c: V, d: V): V =
-  b * c - sin(d)
+// Plain Spire code: no OpenCL imports and no library-specific DSL. Args groups the arguments, Answer
+// names the result — both ordinary case classes, nothing OpenCL-specific about either.
+case class Args[V](b: V, c: V, d: V)
+case class Answer[V](value: V)
+
+def program[V: {Field, Trig}](args: Args[V]): Answer[V] =
+  Answer(args.b * args.c - sin(args.d))
 
 // With V = Double it is just a normal CPU calculation.
-program[Double](2.5, 4.0, 0.75)
+program(Args[Double](2.5, 4.0, 0.75))
 ```
 
 ## Build a formula
 
-Run the same function with symbolic arguments:
+Run the same function with symbolic arguments — `Reify.outTyped[Args, Answer]` reads `Args`'s field
+labels for the params and `Answer`'s for the result name, both off the case classes themselves:
 
 ```scala mdoc:silent
-import io.github.mercurievv.spireopencl.symbolic.{Reify, instances}
+import io.github.mercurievv.spireopencl.symbolic.{Reify, TypedFormula, TypedFormula2, instances}
 import instances.given
 
-val formula = Reify(uniforms = Nil, params = List("b", "c", "d")) { (_, param) =>
-  program(param("b"), param("c"), param("d")) // V = Expr, so operators build an expression tree.
+val formula: TypedFormula2[Args, Answer] = Reify.outTyped[Args, Answer](uniforms = Nil) { (_, args) =>
+  program(args) // V = Expr, so operators build an expression tree.
 }
 ```
 
 ```scala mdoc
-formula.params
+formula.formula.params
+formula.outputNames
 ```
 
 `Reify` does not inspect Scala code. It applies your function to `Expr` values and keeps the expression
@@ -83,71 +89,66 @@ element, and inputs are device-resident arrays.
 ```scala mdoc
 import io.github.mercurievv.spireopencl.opencl.CodeGen
 
-CodeGen(formula).linesIterator.take(6).mkString("\n")
+CodeGen(formula.formula).linesIterator.take(6).mkString("\n")
 ```
 
 ## Compile and launch
 
 The launch path needs real OpenCL hardware, so this fence is compile-only in the documentation build.
-It still type-checks against the real API on every docs run.
+It still type-checks against the real API on every docs run. `ClKernel.compileT2` + `TypedKernel2.renderT`
+take an `Args[Float]` and hand back an `Answer[Float]` — no `Map`, no `out` array:
 
 ```scala mdoc:compile-only
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import io.github.mercurievv.spireopencl.opencl.ClKernel
+import io.github.mercurievv.spireopencl.opencl.{ClKernel, renderT}
 
-val result: Float =
-  ClKernel.compile[IO](formula, size = 1, maxBatchSize = 1).use { kernel =>
-    IO {
-      val out = new Array[Float](1)
-      kernel.renderUnsafe(
-        uniforms = Map.empty,
-        params = Map("b" -> 2.5f, "c" -> 4.0f, "d" -> 0.75f),
-        out = out,
-      )
-      out(0)
-    }
+val result: Answer[Float] =
+  ClKernel.compileT2[IO, Args, Answer](formula, size = 1, maxBatchSize = 1).use { kernel =>
+    IO { kernel.renderT(Args[Float](b = 2.5f, c = 4.0f, d = 0.75f)) }
   }.unsafeRunSync()
 ```
 
-Expected output is about `9.318361`, matching the `Double` example up to Float precision.
+Expected `result.value` is about `9.318361`, matching the `Double` example up to Float precision.
 
 ## Arrays
 
-Use `Reify.arrays` when each work-item reads one element from a device-resident array:
+Use `Reify.arraysTyped` when each work-item reads one element from a device-resident array — one input
+per field, matched by name, the array analogue of `outTyped`:
 
 ```scala mdoc:silent
-def elementwise[V: Field](a: V, b: V, c: V): V =
-  a * b + c
+case class Vals[V](a: V, b: V, c: V)
 
-val arrayFormula = Reify.arrays(
-  uniforms = Nil,
-  params = Nil,
-  inputs = List("a", "b", "c"),
-) { (_, _, input) =>
-  elementwise(input("a"), input("b"), input("c"))
+def elementwise[V: Field](vals: Vals[V]): V =
+  vals.a * vals.b + vals.c
+
+val arrayFormula: TypedFormula[Vals] = Reify.arraysTyped[Vals](uniforms = Nil, params = Nil) { (_, _, vals) =>
+  elementwise(vals)
 }
 ```
 
 ```scala mdoc
-CodeGen(arrayFormula).linesIterator.find(_.contains("__global const float* a")).get
+CodeGen(arrayFormula.formula).linesIterator.find(_.contains("__global const float* a")).get
 ```
 
-Upload inputs separately from launches:
+Upload inputs separately from launches — `TypedKernel.writeInputsT` takes a `Vals[Array[Float]]`, one
+array per field, instead of one `writeInputUnsafe` call per array:
 
 ```scala mdoc:compile-only
 import cats.effect.IO
-import io.github.mercurievv.spireopencl.opencl.ClKernel
+import io.github.mercurievv.spireopencl.opencl.{ClKernel, writeInputsT}
 
 val n = 1024
-ClKernel.compile[IO](arrayFormula, size = n, maxBatchSize = 1).use { kernel =>
+ClKernel.compileT[IO, Vals](arrayFormula, size = n, maxBatchSize = 1).use { kernel =>
   IO {
-    kernel.writeInputUnsafe("a", Array.fill(n)(1.5f))
-    kernel.writeInputUnsafe("b", Array.fill(n)(2.0f))
-    kernel.writeInputUnsafe("c", Array.fill(n)(0.25f))
+    kernel.writeInputsT(Vals[Array[Float]](
+      a = Array.fill(n)(1.5f),
+      b = Array.fill(n)(2.0f),
+      c = Array.fill(n)(0.25f),
+    ))
 
     val out = new Array[Float](n)
-    kernel.renderBatchUnsafe(Map.empty, Seq(Map.empty), out)
+    kernel.kernel.renderBatchUnsafe(Map.empty, Seq(Map.empty), out)
     out(0) // 3.25f
   }
 }
