@@ -18,7 +18,12 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
+      # fetch-depth: 0 — checkout's default is a shallow, tag-less clone, and
+      # build.mill's latestReleaseVersion reads `git tag --list`; without full history
+      # that call sees no tags at all and silently falls back to 0.1.0-SNAPSHOT.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-java@v4
         with:
