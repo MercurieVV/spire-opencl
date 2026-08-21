@@ -18,14 +18,14 @@ checked markdown.
 SBT:
 
 ```scala
-libraryDependencies += "io.github.mercurievv" %% "spire-opencl" % "0.1.5"
+libraryDependencies += "io.github.mercurievv" %% "spire-opencl" % "@VERSION@"
 ```
 
 Mill:
 
 ```scala
 def mvnDeps = Seq(
-  mvn"io.github.mercurievv::spire-opencl:0.1.5"
+  mvn"io.github.mercurievv::spire-opencl:@VERSION@"
 )
 ```
 

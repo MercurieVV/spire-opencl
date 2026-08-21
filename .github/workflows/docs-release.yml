@@ -1,0 +1,14 @@
+name: Docs (release)
+
+# Deliberately no `paths` filter, unlike docs.yml: a release tag doesn't touch docs/**, but
+# build.mill's latestReleaseVersion reads the git tag list, not a file diff, so the version shown in
+# the site's setup instructions changes on every tag regardless of what files that push touched. A
+# path filter here would skip exactly the rebuild this exists for.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  docs:
+    uses: ./.github/workflows/docs-build.yml

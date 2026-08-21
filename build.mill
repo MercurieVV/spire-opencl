@@ -258,6 +258,25 @@ object docs extends ScalaModule {
   // Directory mode: every `.md` under here is checked (`README.md` plus any further pages, e.g. `var-operations.md`).
   def mdocSource = Task.Source(moduleDir)
 
+  /** The newest `vX.Y.Z` release tag, for `@VERSION@` in setup instructions — not `spireOpencl.publishVersion`, which is
+    * a `-SNAPSHOT` on every build except the tag build itself. Docs rebuild on ordinary master pushes far more often
+    * than on a release, and a reader's `libraryDependencies +=` line should show what they can actually depend on right
+    * now regardless of which push triggered this build — which is why this reads the tag list instead of the ref.
+    *
+    * `git tag --sort=-v:refname` is git's own version-aware sort, descending, so the first line is the newest release;
+    * no manual semver parsing to keep in sync with `publishVersion`'s. Task.Input, not Task: a cached task would keep
+    * the first tag it ever saw.
+    */
+  def latestReleaseVersion = Task.Input {
+    os.proc("git", "tag", "--list", "v*", "--sort=-v:refname")
+      .call(cwd = mill.api.BuildCtx.workspaceRoot)
+      .out
+      .lines()
+      .headOption
+      .map(_.drop(1))
+      .getOrElse("0.1.0-SNAPSHOT")
+  }
+
   private def preparedMarkdown = Task {
     val dest = Task.dest / "docs"
     os.makeDir.all(dest)
@@ -285,6 +304,8 @@ object docs extends ScalaModule {
         Task.dest.toString,
         "--classpath",
         runClasspath().map(_.path).mkString(java.io.File.pathSeparator),
+        "--site.VERSION",
+        latestReleaseVersion(),
       ),
     )
     PathRef(Task.dest)
