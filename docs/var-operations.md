@@ -15,20 +15,17 @@ import spire.implicits.*
 import spire.math.{sin, sqrt}
 
 case class Point[V](x: V, y: V, z: V)
+case class Answer[V](value: V)
 
-def richProgram[V: {Field, NRoot, Trig}](point: Point[V]): V =
+def richProgram[V: {Field, NRoot, Trig}](point: Point[V]): Answer[V] =
   val ratio = (point.x - point.y) / (point.z + 1)
-  sqrt(ratio * ratio) + sin(point.y)
+  Answer(sqrt(ratio * ratio) + sin(point.y))
 
 richProgram(Point[Double](3.0, 1.0, 4.0))
 ```
 
 `richProgram` returns one `V`, so its `Out` is a one-field case class — `value` is as good a name as any, since a single
 result carries none of the naming information several results would:
-
-```scala mdoc
-case class Answer[V](value: V)
-```
 
 Reifying it still needs one `Expr` per field, but `Reify.outTyped[Point, Answer]` reads both `In`'s params and `Out`'s result
 names off the case classes' own field labels instead of declaring `"x", "y", "z"` as a list and naming the result again
@@ -39,7 +36,7 @@ import io.github.mercurievv.spireopencl.symbolic.{Expr, Reify, TypedFormula, Typ
 import instances.given
 
 val richFormula: TypedFormula2[Point, Answer] = Reify.outTyped[Point, Answer](uniforms = Nil) { (_, point) =>
-  Answer(richProgram(point))
+  richProgram(point)
 }
 ```
 
@@ -71,13 +68,13 @@ val richResult: Answer[Float] =
 
 `richProgram` also runs elementwise over device-resident arrays — one array per field instead of one float. `Out` stays implicit
 here: the launch answers with the whole array it computed, one value per array element, rather than a single named result, so
-there is nothing for an `Out` case class to name. `In` stays exactly as typed as before — `Reify.arraysTyped[Point]` is the array
-analogue of `Reify[Point]`: it declares one input per field of `Point` and hands `build` the filled `Point[Expr]`, so the same
-`richProgram(point)` reifies unchanged:
+there is nothing for an `Out` case class to name — `build` still returns one bare `Expr`, so `richProgram(point).value` unwraps
+`Answer` rather than reifying it. `In` stays exactly as typed as before — `Reify.arraysTyped[Point]` is the array analogue of
+`Reify[Point]`: it declares one input per field of `Point` and hands `build` the filled `Point[Expr]`.
 
 ```scala mdoc:silent
 val richArrayFormula: TypedFormula[Point] = Reify.arraysTyped[Point](uniforms = Nil, params = Nil) { (_, _, point) =>
-  richProgram(point)
+  richProgram(point).value
 }
 ```
 
