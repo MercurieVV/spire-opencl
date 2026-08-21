@@ -9,6 +9,13 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+# See docs.yml: reusable-workflow permissions are the intersection of caller and callee, so this has
+# to grant the same set docs-build.yml requests, not just declare it there.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   docs:
     uses: ./.github/workflows/docs-build.yml

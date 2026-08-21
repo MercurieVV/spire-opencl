@@ -12,6 +12,14 @@ on:
       - '.github/workflows/docs-build.yml'
   workflow_dispatch:
 
+# Reusable-workflow permissions are the intersection of caller and callee: docs-build.yml requests
+# pages/id-token, but that's a ceiling, not a grant -- the caller has to grant them too, or they're
+# silently capped at the repo default (none), which fails the run at startup.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   docs:
     uses: ./.github/workflows/docs-build.yml
