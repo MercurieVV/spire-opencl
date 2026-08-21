@@ -131,7 +131,8 @@ object CodeGen:
     * parameters share one packed buffer for the same reason — every extra host→device transfer costs about what the kernel does.
     */
   def apply(formula: Formula): String =
-    (formula.uniforms ++ formula.params ++ formula.states ++ formula.inputs)
+    val extraOutputNames = formula.extraOutputs.map(_._1)
+    (formula.uniforms ++ formula.params ++ formula.states ++ formula.inputs ++ extraOutputNames)
       .find(reserved.contains)
       .foreach(n => throw new IllegalArgumentException(s"argument name '$n' is reserved by the kernel"))
     List(
@@ -141,6 +142,10 @@ object CodeGen:
       ("a uniform", "an input", formula.uniforms, formula.inputs),
       ("a parameter", "an input", formula.params, formula.inputs),
       ("a state", "an input", formula.states, formula.inputs),
+      ("a uniform", "an extra output", formula.uniforms, extraOutputNames),
+      ("a parameter", "an extra output", formula.params, extraOutputNames),
+      ("a state", "an extra output", formula.states, extraOutputNames),
+      ("an input", "an extra output", formula.inputs, extraOutputNames),
     )
       .foreach: (kindA, kindB, a, b) =>
         a.find(b.contains).foreach(n => throw new IllegalArgumentException(s"'$n' is declared both as $kindA and as $kindB"))
@@ -151,7 +156,7 @@ object CodeGen:
      * total and runs once, in the reducing work-item. Seeding the second phase with the first phase's names --
      * including the sum itself, bound to `mix` -- is what lets a shared subexpression be computed once and used
      * on both sides. */
-    val (elementPhase, elementResult, postPhase, result) = formula.sum match
+    val (elementPhase0, elementResult, postPhase0, result) = formula.sum match
       case Some(inner) =>
         val (a, total) = emit(inner, Emit(Map.empty, Vector.empty, 0), refs)
         val seeded = a.copy(names = a.names + (Expr.Sum(inner) -> "mix"), lines = Vector.empty)
@@ -160,6 +165,15 @@ object CodeGen:
       case None =>
         val (a, out) = emit(formula.body, Emit(Map.empty, Vector.empty, 0), refs)
         (a, out, a.copy(lines = Vector.empty), out)
+
+    /* Chained onto elementPhase0 so a name shared with body — or between two extra outputs — is computed once. A no-op when there are no extra
+     * outputs, so an ordinary formula's generated source is unaffected. Reduction and extra outputs are mutually exclusive (see Formula's require),
+     * so postPhase's counter only needs bumping in the non-reduced case, where it started out equal to elementPhase0's. */
+    val (elementPhase, extraResults) = formula.extraOutputs.foldLeft((elementPhase0, Vector.empty[(String, String)])):
+      case ((acc, results), (name, expr)) =>
+        val (next, value) = emit(expr, acc, refs)
+        (next, results :+ (name -> value))
+    val postPhase = if formula.sum.isEmpty && formula.extraOutputs.nonEmpty then postPhase0.copy(next = elementPhase.next) else postPhase0
     val post = postPhase.lines
 
     /* A third phase, seeded from the per-element one for the same reason: an update almost always shares work with
@@ -182,6 +196,8 @@ object CodeGen:
     val paramArgs = if formula.params.isEmpty then "" else ", __global const float* params"
     // One pointer each, in declared order, so the host can bind an array it already owns without repacking.
     val inputArgs = formula.inputs.map(n => s", __global const float* $n").mkString
+    // Alongside `out`, one buffer per extra output, in declared order — matches ClKernel's bind order.
+    val extraOutArgs = extraOutputNames.map(n => s", __global float* $n").mkString
     // Appended after the buffers so a formula that gains state keeps every earlier argument's index.
     val stateArgs = if formula.states.isEmpty then "" else ", __global const float* stateIn, __global float* stateOut"
     // One float per batch element, scoped to the work-group, which the host sizes at launch.
@@ -204,12 +220,14 @@ object CodeGen:
            |${post.map("  " + _).mkString("\n")}
            |    out[i] = $result;
            |  }""".stripMargin
-      else s"""  int e = get_global_id(1);
+      else
+        val extraWrites = extraResults.map { case (name, value) => s"\n  $name[e * n + i] = $value;" }.mkString
+        s"""  int e = get_global_id(1);
            |  int n = get_global_size(0);
            |$perElement
-           |  out[e * n + i] = $result;""".stripMargin
+           |  out[e * n + i] = $result;$extraWrites""".stripMargin
 
-    s"""__kernel void $kernelName(__global float* out$scalars$paramArgs$inputArgs$stateArgs$localArgs) {
+    s"""__kernel void $kernelName(__global float* out$extraOutArgs$scalars$paramArgs$inputArgs$stateArgs$localArgs) {
        |$preamble
        |$core
        |}

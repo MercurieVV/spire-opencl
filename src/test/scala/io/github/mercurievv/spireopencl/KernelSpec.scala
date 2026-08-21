@@ -173,6 +173,24 @@ object KernelSpec extends SimpleIOSuite:
     }
   }
 
+  test("Reify.outTyped + ClKernel.compileT2 + TypedKernel2.renderT launch one kernel producing several named outputs") {
+    import io.github.mercurievv.spireopencl.opencl.renderT
+    case class Point[V](x: V, y: V, z: V)
+    case class Result[V](sum: V, product: V)
+    val resultFormula = Reify.outTyped[Point, Result](uniforms = Nil) { (_, pt) =>
+      Result(
+        sum     = Expr.add(Expr.add(pt.x, pt.y), pt.z),
+        product = Expr.mul(Expr.mul(pt.x, pt.y), pt.z),
+      )
+    }
+    ClKernel.compileT2[IO, Point, Result](resultFormula, size = 1).use { kernel =>
+      IO {
+        val result = kernel.renderT(Point[Float](3.0f, 1.0f, 4.0f))
+        expect(result.sum == 8.0f) && expect(result.product == 12.0f)
+      }
+    }
+  }
+
   test("a formula with no parameters at all still compiles and runs") {
     val constant = Reify(List("dx"), Nil)((uniform, _) => Expr.mul(Expr.Index, uniform("dx")))
     ClKernel.compile[IO](constant, size, 1).use { kernel =>

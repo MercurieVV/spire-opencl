@@ -60,6 +60,40 @@ object CodeGenSpec extends SimpleIOSuite:
     expect(rejects(CodeGen(Formula(Expr.Param("x"), List("x"), List("x")))))
   }
 
+  pureTest("extraOutputs get their own buffer argument and per-element write, sharing work with body") {
+    val shared = Expr.mul(Expr.Param("a"), Expr.Param("b"))
+    val formula = Formula(
+      shared,
+      Nil,
+      List("a", "b"),
+      extraOutputs = List("product2" -> Expr.mul(shared, Expr.Const(2))),
+    )
+    val src = CodeGen(formula)
+    expect(src.contains("__kernel void compute(__global float* out, __global float* product2,")) &&
+    expect(src.contains("out[e * n + i] = v0;")) &&
+    expect(src.contains("product2[e * n + i] = v1;")) &&
+    // v0 (the shared a * b) is computed once and referenced from both writes, not recomputed for product2.
+    expect(src.linesIterator.count(_.contains("params[e * 2 + 0] * params[e * 2 + 1]")) == 1)
+  }
+
+  pureTest("a reduced formula cannot declare extraOutputs: there is no single total for the rest") {
+    expect(
+      try {
+        val _ = Formula(
+          Expr.Sum(Expr.Param("v")),
+          Nil,
+          List("v"),
+          extraOutputs = List("other" -> Expr.Param("v")),
+        );
+        false
+      } catch case _: IllegalArgumentException => true,
+    )
+  }
+
+  pureTest("an extraOutput colliding with a uniform, parameter, state or input is rejected, like any other kind") {
+    expect(rejects(CodeGen(Formula(Expr.Param("x"), Nil, List("x"), extraOutputs = List("x" -> Expr.Const(1))))))
+  }
+
   pureTest("nested reductions are rejected: there is one batch dimension") {
     expect(rejects(CodeGen(Formula(Expr.Sum(Expr.Sum(Expr.Param("v"))), Nil, List("v"))))) &&
     // Two separate reductions are the same problem: only one can be the barrier.

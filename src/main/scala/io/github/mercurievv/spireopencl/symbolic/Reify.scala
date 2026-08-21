@@ -17,6 +17,9 @@ import scala.deriving.Mirror
   *   - `params` — one value per batch element; packed into a single buffer, element-major.
   *   - `states` — one value per batch element that survives to the next launch, with `updates` giving each cell's new value.
   *   - `inputs` — one value per work-item: a device-resident array, one buffer each, written by the host independently of launching.
+  *   - `extraOutputs` — additional per-element results, each its own named device buffer, computed and written alongside `body` in the same launch.
+  *     `body` stays the one output every other operation (`summed`, `scaledBy`, a caller reading `render`'s plain `out`) already knows about; a
+  *     formula that needs more than one result declares the rest here rather than every reader learning to expect a list.
   *
   * `inputs` comes last so that a formula that gains one keeps every earlier argument's meaning, and every existing caller keeps compiling.
   */
@@ -26,7 +29,8 @@ final case class Formula(
   params: List[String],
   states: List[String] = Nil,
   updates: Map[String, Expr] = Map.empty,
-  inputs: List[String] = Nil)
+  inputs: List[String] = Nil,
+  extraOutputs: List[(String, Expr)] = Nil)
     derives CanEqual:
 
   require(
@@ -43,6 +47,12 @@ final case class Formula(
       !Expr.containsSum(update),
       s"state update '$name' contains a Sum; state is per batch element, reduction spans them",
     )
+
+  require(
+    extraOutputs.isEmpty || sum.isEmpty,
+    "extraOutputs are not supported on a reduced formula: reduction collapses the batch dimension for body alone, " +
+      "and there is no matching total for the rest",
+  )
 
   def nodeCount: Int = Expr.nodeCount(body)
 
@@ -76,6 +86,14 @@ final case class Formula(
   * the wrong data — at run time.
   */
 final case class TypedFormula[F[_]](formula: Formula)
+
+/** A `Formula` producing more than one named result in a single launch — see `Reify.outTyped`. `In` tags the arguments the same way
+  * `TypedFormula[In]` does; `Out` tags which `Expr` `build` returned for which result, by `Out`'s own field labels, in `outputNames`.
+  *
+  * `body` holds `outputNames.head`'s expression and `extraOutputs` the rest — see `Formula`'s doc — but a caller working through
+  * `TypedKernel2.renderT` never sees that split: it hands back one `Out[Float]`, reassembled by name in `outputNames`' order.
+  */
+final case class TypedFormula2[In[_], Out[_]](formula: Formula, outputNames: List[String])
 
 /** Compose → IR.
   *
@@ -122,6 +140,35 @@ object Reify:
         uniforms,
         params,
       ),
+    )
+
+  /** As `apply[F]`, but `build` returns `Out[Expr]` instead of a single `Expr` — one result per field of `Out`, each its own device buffer, produced
+    * by the same launch. For `case class Result[V](sum: V, product: V)`, `Reify.outTyped[Point, Result](uniforms = Nil) { (_, point) =>
+    * Result(point.x + point.y + point.z, point.x * point.y * point.z) }` declares two outputs, `sum` and `product`, and
+    * `TypedKernel2.renderT(Point[Float](...))` hands both back as one `Result[Float]`.
+    *
+    * `Out`'s first field becomes `Formula.body`; the rest become `Formula.extraOutputs`, in the order `Out` declares them. Neither the split nor the
+    * order is a caller's concern — `TypedFormula2.outputNames` and `TypedKernel2.renderT` reassemble `Out[Float]` by name, not by position.
+    */
+  inline def outTyped[In[_], Out[_]](
+    uniforms: List[String],
+  )(
+    build: (String => Expr, In[Expr]) => Out[Expr],
+  )(using Mirror.ProductOf[In[String]],
+    Mirror.ProductOf[In[Expr]],
+    Mirror.ProductOf[Out[String]],
+  ): TypedFormula2[In, Out] =
+    val params = FieldLabels.namesOf[In]
+    val outNames = FieldLabels.namesOf[Out]
+    val outExpr = build(
+      lookup("uniform", uniforms, Expr.Uniform.apply),
+      FieldLabels.fill[In, Expr](lookup("param", params, Expr.Param.apply)),
+    )
+    val outValues = FieldLabels.read[Out, Expr](outExpr)
+    val (_, primaryExpr) = outValues.head
+    TypedFormula2(
+      Formula(primaryExpr, uniforms, params, extraOutputs = outValues.tail),
+      outNames,
     )
 
   /** As `apply`, with device-resident arrays: a third lookup whose names read one element per work-item.

@@ -1,7 +1,7 @@
 package io.github.mercurievv.spireopencl.opencl
 
 import cats.effect.{Resource, Sync}
-import io.github.mercurievv.spireopencl.symbolic.{Formula, TypedFormula}
+import io.github.mercurievv.spireopencl.symbolic.{Formula, TypedFormula, TypedFormula2}
 import io.github.mercurievv.spireopencl.util.FieldLabels
 import org.jocl.*
 import org.jocl.CL.*
@@ -179,6 +179,16 @@ trait Kernel[F[_]]:
     */
   def writeStateUnsafe(in: Array[Float]): Unit
 
+  /** The formula's declared extra output names, in declared order — see `Formula.extraOutputs` and `Reify.outTyped`. Empty for an ordinary
+    * single-output formula.
+    */
+  def extraOutputNames: List[String]
+
+  /** One extra output buffer, read back the same way [[readStateUnsafe]] reads state: after a launch that wrote it, element-major, same layout as the
+    * main `out` of that launch. `name` must be one of [[extraOutputNames]].
+    */
+  def readExtraOutputUnsafe(name: String, out: Array[Float]): Unit
+
 object ClKernel:
 
   /** Where a launch's results are read back to.
@@ -348,6 +358,18 @@ object ClKernel:
   ): Resource[F, TypedKernel[F, Args]] =
     compile[F](typed.formula, size, maxBatchSize, hostVisibleOutput, outputSlots).map(TypedKernel(_))
 
+  /** As `compile`, for a `TypedFormula2[In, Out]` — `Reify.outTyped[In, Out]`. The `Kernel` comes back wrapped as `TypedKernel2[F, In, Out]`, whose
+    * `renderT` accepts an `In[Float]` and returns an `Out[Float]` assembled from every output the formula declared, in one launch.
+    */
+  def compileT2[F[_]: Sync, In[_], Out[_]](
+    typed: TypedFormula2[In, Out],
+    size: Int,
+    maxBatchSize: Int = DefaultMaxBatch,
+    hostVisibleOutput: Boolean = false,
+    outputSlots: Int = 1,
+  ): Resource[F, TypedKernel2[F, In, Out]] =
+    compile[F](typed.formula, size, maxBatchSize, hostVisibleOutput, outputSlots).map(TypedKernel2(_, typed.outputNames))
+
   /** `hostVisibleOutput` allocates the output where the host can map it, which is what makes [[Kernel.renderBatchMappedUnsafe]] cheap. Off by
     * default: on a device with its own memory it can place the buffer somewhere the kernel writes to more slowly, and a caller who reads back the
     * ordinary way would pay for a facility it never uses.
@@ -364,6 +386,7 @@ object ClKernel:
     val elementParams = formula.params
     val stateNames = formula.states
     val inputNames = formula.inputs
+    val extraOutNames = formula.extraOutputs.map(_._1)
     // The compile parameters, captured before the returned kernel shadows their names with its own members.
     val dim0 = size
     val slots = outputSlots
@@ -423,6 +446,21 @@ object ClKernel:
           null,
         ),
       )(clReleaseMemObject)
+      /* One write-only buffer per extra output, same shape and same single-slot lifetime as `out` itself — extra outputs are read back explicitly
+       * via readExtraOutputUnsafe, the same way state is, rather than through the slot-rotation machinery `out` has. */
+      extraOutBuffers <- acquire(
+        extraOutNames
+          .map(_ =>
+            clCreateBuffer(
+              context,
+              CL_MEM_WRITE_ONLY,
+              (Sizeof.cl_float * size * maxBatchSize).toLong,
+              null,
+              null,
+            ),
+          )
+          .toArray,
+      )(_.foreach(clReleaseMemObject))
       /* One buffer per declared input, each the dimension-0 extent — an input is per work-item, so its length has
        * nothing to do with the batch. Zero-filled at acquire so that a formula launched before its arrays are
        * written reads defined zeros rather than whatever the driver handed back; `pendingInputs` below turns that
@@ -465,6 +503,25 @@ object ClKernel:
       val outputSlots: Int = slots
       val uniformNames: List[String] = formula.uniforms
       val paramNames: List[String] = formula.params
+      val extraOutputNames: List[String] = extraOutNames
+
+      def readExtraOutputUnsafe(name: String, out: Array[Float]): Unit =
+        val idx = extraOutNames.indexOf(name)
+        if idx < 0 then throw new IllegalArgumentException(s"undeclared extra output '$name'; declared: $extraOutNames")
+        else
+          val floats = math.min(out.length, size * maxBatchSize)
+          clEnqueueReadBuffer(
+            queue,
+            extraOutBuffers(idx),
+            CL_TRUE,
+            0,
+            (Sizeof.cl_float * floats).toLong,
+            Pointer.to(out),
+            0,
+            null,
+            null,
+          )
+          ()
 
       /** Which slot the next launch writes. Rotates, so `outputSlots` launches can be in flight before one overwrites another. */
       private val nextSlot = new java.util.concurrent.atomic.AtomicInteger(0)
@@ -740,6 +797,7 @@ object ClKernel:
           def bind(size: Long, value: Pointer): Unit = clSetKernelArg(kernel, argIdx.getAndIncrement(), size, value)
 
           bind(Sizeof.cl_mem.toLong, Pointer.to(outBuffer))
+          extraOutBuffers.foreach(buf => bind(Sizeof.cl_mem.toLong, Pointer.to(buf)))
           formula.uniforms.foreach { name =>
             val value = uniforms.getOrElse(
               name,
@@ -894,3 +952,36 @@ extension [F[_], Args[_]](kernel: TypedKernel[F, Args])
     */
   inline def writeInputsT(data: Args[Array[Float]])(using Mirror.ProductOf[Args[String]]): Unit =
     kernel.kernel.writeInputsT[Args](data)
+
+/** A `Kernel[F]` compiled from a `TypedFormula2[In, Out]` — see [[ClKernel.compileT2]]. `outputNames` is `Out`'s field order, carried alongside the
+  * plain `Kernel` so [[renderT]] can reassemble a launch's several outputs into one `Out[Float]` without re-deriving field names at every call.
+  */
+final case class TypedKernel2[F[_], In[_], Out[_]](kernel: Kernel[F], outputNames: List[String])
+
+/** One launch, one `In[Float]` in, one `Out[Float]` out — every output the formula declared, assembled by name from `Out`'s own field labels.
+  * Requires a kernel compiled with `size = 1`, the same restriction [[TypedKernel.renderUnsafeT]]'s no-`out` overload has, and for the same reason:
+  * an `Out[Float]` is one value per declared output, and there is more than one only when the kernel produces more than one float per output to begin
+  * with.
+  */
+extension [F[_], In[_], Out[_]](kernel: TypedKernel2[F, In, Out])
+
+  inline def renderT(
+    args: In[Float],
+  )(using Mirror.ProductOf[In[String]],
+    Mirror.ProductOf[In[Float]],
+    Mirror.ProductOf[Out[String]],
+    Mirror.ProductOf[Out[Float]],
+  ): Out[Float] =
+    val primary = kernel.kernel.renderUnsafeT[In](args)
+    val extras = kernel.kernel.extraOutputNames.map { name =>
+      val out = new Array[Float](1)
+      kernel.kernel.readExtraOutputUnsafe(name, out)
+      name -> out(0)
+    }
+    val byName = ((kernel.outputNames.head -> primary) :: extras).toMap
+    FieldLabels.fill[Out, Float](name =>
+      byName.getOrElse(
+        name,
+        throw new IllegalArgumentException(s"missing output '$name'; declared: ${kernel.outputNames}"),
+      ),
+    )

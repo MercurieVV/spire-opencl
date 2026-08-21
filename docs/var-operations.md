@@ -99,6 +99,49 @@ val richArrayResult: Array[Float] =
 
 Every element answers the same as the single-point launch above, since every element was given the same `x`, `y`, `z`.
 
+## Multiple outputs
+
+A formula can produce more than one named result in a single launch — one device buffer per result, written together. Where
+`richProgram` returns one `V`, this returns a case class of them:
+
+```scala mdoc
+case class Result[V](sum: V, product: V)
+
+def stats[V: Field](point: Point[V]): Result[V] =
+  Result(sum = point.x + point.y + point.z, product = point.x * point.y * point.z)
+
+stats(Point[Double](3.0, 1.0, 4.0))
+```
+
+`Reify.outTyped[In, Out]` is the two-sided version of `Reify[F]`: `In`'s field labels declare the params, same as before, and
+`Out`'s field labels name the outputs — `build` returns an `Out[Expr]` instead of one `Expr`:
+
+```scala mdoc:silent
+import io.github.mercurievv.spireopencl.symbolic.TypedFormula2
+
+val statsFormula: TypedFormula2[Point, Result] = Reify.outTyped[Point, Result](uniforms = Nil) { (_, point) =>
+  stats(point)
+}
+```
+
+```scala mdoc
+statsFormula.outputNames
+```
+
+`ClKernel.compileT2` + `TypedKernel2.renderT` launch it exactly like `renderUnsafeT`'s no-`out` overload, but hand back an
+`Out[Float]` instead of a single `Float` — every output the formula declared, from one launch:
+
+```scala mdoc:compile-only
+import cats.effect.IO
+import cats.effect.unsafe.implicits.global
+import io.github.mercurievv.spireopencl.opencl.{ClKernel, renderT}
+
+val statsResult: Result[Float] =
+  ClKernel.compileT2[IO, Point, Result](statsFormula, size = 1, maxBatchSize = 1).use { kernel =>
+    IO { kernel.renderT(Point[Float](3.0f, 1.0f, 4.0f)) }
+  }.unsafeRunSync()
+```
+
 ## Stateful cells
 
 `Var[F, V, A]` describes one cell update; `.at(id)` places it in the formula state store. Here the cell is an
