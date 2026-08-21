@@ -549,7 +549,7 @@ object ClKernel:
         batch: Seq[Map[String, Float]],
         onPhase: (String, Long) => Unit = (_, _) => (),
       ): Int =
-        launch(uniforms, batch.size, () => fillFromMaps(batch), None, onPhase)
+        launch(uniforms, batch.size, staging => fillFromMaps(batch, staging), None, onPhase)
 
       def finishUnsafe(): Unit =
         clFinish(queue)
@@ -616,12 +616,21 @@ object ClKernel:
 
       /** Direct, so the parameter upload can be non-blocking: JOCL rejects a non-blocking transfer from a heap array, and a blocking one costs a full
         * device round trip — measurably more than the kernel itself at small sizes.
+        *
+        * One per output slot, not one shared buffer: `clEnqueueWriteBuffer(..., CL_FALSE, ...)` only promises this host memory is left alone once the
+        * write actually completes, and a caller may have `slots` launches enqueued before collecting any of them. A single shared buffer would let a
+        * later launch's `fillStaging` overwrite an earlier launch's still-in-flight upload before the driver got to it — invisible on a driver that
+        * happens to copy synchronously, a real race on one (pocl) that copies from a worker thread. Reusing slot `k`'s buffer only `slots` launches
+        * later is exactly the guarantee [[outputSlots]] already documents for `outBuffers`, and the in-order queue makes it sufficient here too:
+        * command `k`'s write must finish before command `k + 1` can start, so by the time slot `k`'s buffer is due for reuse, every command between
+        * the two writes has already completed it.
         */
-      private val staging =
+      private val stagingBuffers: Array[java.nio.FloatBuffer] = Array.fill(slots)(
         java.nio.ByteBuffer
           .allocateDirect(math.max(1, Sizeof.cl_float * elementParams.size * maxBatchSize))
           .order(java.nio.ByteOrder.nativeOrder)
-          .asFloatBuffer
+          .asFloatBuffer,
+      )
 
       /** Which of the pair the next launch reads. The other is the one it writes. */
       private val readSide = new java.util.concurrent.atomic.AtomicInteger(0)
@@ -673,7 +682,7 @@ object ClKernel:
         val _ = launch(
           uniforms,
           batch.size,
-          () => fillFromMaps(batch),
+          staging => fillFromMaps(batch, staging),
           Some(Destination.heap(out)),
           onPhase,
         )
@@ -693,7 +702,7 @@ object ClKernel:
           val _ = launch(
             uniforms,
             batchSize,
-            () => {
+            staging => {
               var i = 0
               while i < needed do
                 staging.put(i, params(i))
@@ -717,7 +726,7 @@ object ClKernel:
           )
         else
           val dest = Destination.mapped(use)
-          val _ = launch(uniforms, batch.size, () => fillFromMaps(batch), Some(dest), onPhase)
+          val _ = launch(uniforms, batch.size, staging => fillFromMaps(batch, staging), Some(dest), onPhase)
           dest()
 
       def renderBatchIntoUnsafe(
@@ -731,7 +740,7 @@ object ClKernel:
           val _ = launch(
             uniforms,
             batch.size,
-            () => fillFromMaps(batch),
+            staging => fillFromMaps(batch, staging),
             Some(Destination.native(out)),
             onPhase,
           )
@@ -739,8 +748,8 @@ object ClKernel:
       /** One launch. The destination is the only thing the two public entry points disagree about, and it is reached exactly twice — once to size the
         * check, once to hand the driver a pointer — so keeping them one body is what stops the two paths drifting.
         */
-      /** The staging fill for a batch of `Map`s: one lookup per declared parameter per element. */
-      private def fillFromMaps(batch: Seq[Map[String, Float]]): Unit =
+      /** The staging fill for a batch of `Map`s: one lookup per declared parameter per element, into whichever slot's buffer this launch owns. */
+      private def fillFromMaps(batch: Seq[Map[String, Float]], staging: java.nio.FloatBuffer): Unit =
         batch.zipWithIndex.foreach { case (v, elementIdx) =>
           elementParams.zipWithIndex.foreach { case (name, paramIdx) =>
             val value =
@@ -758,13 +767,14 @@ object ClKernel:
       private def launch(
         uniforms: Map[String, Float],
         n: Int,
-        fillStaging: () => Unit,
+        fillStaging: java.nio.FloatBuffer => Unit,
         dest: Option[Destination],
         onPhase: (String, Long) => Unit,
       ): Int = {
         val outputFloats = if reduced then size else size * n
         val slot = if slots == 1 then 0 else math.floorMod(nextSlot.getAndIncrement(), slots)
         val outBuffer = outBuffers(slot)
+        val staging = stagingBuffers(slot)
         if n == 0 then dest.foreach(_.zeroFill())
         else if n > maxBatchSize then throw new IllegalArgumentException(s"$n batch elements exceed the compiled maximum of $maxBatchSize")
         else if pendingInputs > 0 then
@@ -777,7 +787,7 @@ object ClKernel:
           throw new IllegalArgumentException(s"${d.describe} holds ${d.capacity} floats, needs at least $outputFloats for $n elements of $size")
         else
           if elementParams.nonEmpty then
-            fillStaging()
+            fillStaging(staging)
             staging.position(0)
             clEnqueueWriteBuffer(
               queue,
