@@ -13,6 +13,7 @@ import java.time.LocalDate
 import java.util.regex.Matcher
 import laika.ast.Path.Root
 import laika.api.Transformer
+import laika.config.SyntaxHighlighting
 import laika.format.HTML
 import laika.format.Markdown
 import laika.helium.Helium
@@ -58,6 +59,7 @@ object DocsMain:
       .from(Markdown)
       .to(HTML)
       .using(Markdown.GitHubFlavor)
+      .using(SyntaxHighlighting)
       .parallel[IO]
       .withTheme(theme)
       .build
