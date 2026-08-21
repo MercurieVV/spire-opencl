@@ -1,6 +1,8 @@
 # State and More Operations
 
-Two features beyond the first kernel: a wider Spire surface and a small stateful cell. mdoc-checked.
+Two features beyond the first kernel: a wider Spire surface and a small stateful cell. Every launch here is typed on both
+sides — an `In[_]` case class of arguments goes in, an `Out[_]` case class of results comes out, both fixed at compile time
+to the formula that declared them. mdoc-checked.
 
 ## More Spire operations
 
@@ -21,47 +23,57 @@ def richProgram[V: {Field, NRoot, Trig}](point: Point[V]): V =
 richProgram(Point[Double](3.0, 1.0, 4.0))
 ```
 
-Reifying it still needs one `Expr` per field, but `Reify[Point]` reads `params` off `Point`'s own field labels instead of
-declaring `"x", "y", "z"` separately and naming them again through a lookup. The result is a `TypedFormula[Point]`, not a
-bare `Formula` — the same typing `Reify.statefulVarTyped` gives a stateful cell, below:
+`richProgram` returns one `V`, so its `Out` is a one-field case class — `value` is as good a name as any, since a single
+result carries none of the naming information several results would:
+
+```scala mdoc
+case class Answer[V](value: V)
+```
+
+Reifying it still needs one `Expr` per field, but `Reify.outTyped[Point, Answer]` reads both `In`'s params and `Out`'s result
+names off the case classes' own field labels instead of declaring `"x", "y", "z"` as a list and naming the result again
+through a lookup:
 
 ```scala mdoc:silent
-import io.github.mercurievv.spireopencl.symbolic.{Expr, Reify, TypedFormula, instances}
+import io.github.mercurievv.spireopencl.symbolic.{Expr, Reify, TypedFormula, TypedFormula2, instances}
 import instances.given
 
-val richFormula: TypedFormula[Point] = Reify[Point](uniforms = Nil) { (_, point) =>
-  richProgram(point)
+val richFormula: TypedFormula2[Point, Answer] = Reify.outTyped[Point, Answer](uniforms = Nil) { (_, point) =>
+  Answer(richProgram(point))
 }
 ```
 
 ```scala mdoc
 richFormula.formula.params
+richFormula.outputNames
 ```
 
-`Point`'s field order is the binding order `params` declares on `Formula` — `Reify[Point]` reads both from the same place, so
-they can't drift apart. `Reify.paramsAs[Point](p)` is still there for a formula whose params aren't all one case class, or
-where `build` wants the raw lookup for other reasons.
+`Point`'s field order is the binding order `params` declares on `Formula`, and `Answer`'s is `outputNames` — `Reify.outTyped`
+reads all three from the case classes themselves, so they can't drift apart. `Reify.paramsAs[Point](p)` is still there for a
+formula whose params aren't all one case class, or where `build` wants the raw lookup for other reasons.
 
-`ClKernel.compileT` + `TypedKernel.renderUnsafeT` launch it with a `Point[Float]` directly — no `Map`, no other case
-class's `Point`-shaped lookalike will typecheck here, and, for a kernel compiled with `size = 1`, no `out` array either:
-the one float the launch produces comes back as the return value:
+`ClKernel.compileT2` + `TypedKernel2.renderT` launch it with a `Point[Float]` and hand back an `Answer[Float]` — no `Map`
+on the way in, no `out` array to allocate and index on the way out, and no other case class on either side, `Point`- or
+`Answer`-shaped, will typecheck here:
 
 ```scala mdoc:compile-only
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import io.github.mercurievv.spireopencl.opencl.{ClKernel, renderUnsafeT}
+import io.github.mercurievv.spireopencl.opencl.{ClKernel, renderT}
 
-val richResult: Float =
-  ClKernel.compileT[IO, Point](richFormula, size = 1, maxBatchSize = 1).use { kernel =>
-    IO { kernel.renderUnsafeT(Point[Float](3.0f, 1.0f, 4.0f)) }
+val richResult: Answer[Float] =
+  ClKernel.compileT2[IO, Point, Answer](richFormula, size = 1, maxBatchSize = 1).use { kernel =>
+    IO { kernel.renderT(Point[Float](3.0f, 1.0f, 4.0f)) }
   }.unsafeRunSync()
 ```
 
 ## Arrays of a case class
 
-`richProgram` also runs elementwise over device-resident arrays — one array per field instead of one float. `Reify.arraysTyped[Point]`
-is the array analogue of `Reify[Point]`: it declares one input per field of `Point` and hands `build` the filled `Point[Expr]`, so the
-same `richProgram(point)` reifies unchanged:
+`richProgram` also runs elementwise over device-resident arrays — one array per field instead of one float. `Out` stays implicit
+here: the launch answers with the whole array it computed, one value per array element, rather than a single named result, so
+there is nothing for an `Out` case class to name. `In` stays exactly as typed as before — `Reify.arraysTyped[Point]` is the array
+analogue of `Reify[Point]`: it declares one input per field of `Point` and hands `build` the filled `Point[Expr]`, so the same
+`richProgram(point)` reifies unchanged:
 
 ```scala mdoc:silent
 val richArrayFormula: TypedFormula[Point] = Reify.arraysTyped[Point](uniforms = Nil, params = Nil) { (_, _, point) =>
@@ -101,8 +113,8 @@ Every element answers the same as the single-point launch above, since every ele
 
 ## Multiple outputs
 
-A formula can produce more than one named result in a single launch — one device buffer per result, written together. Where
-`richProgram` returns one `V`, this returns a case class of them:
+`Answer` above has one field because `richProgram` returns one `V`. Nothing about `Reify.outTyped` requires that — `Out` is
+just a case class, and a formula that computes more than one result in the same pass over its arguments declares them all:
 
 ```scala mdoc
 case class Result[V](sum: V, product: V)
@@ -113,12 +125,9 @@ def stats[V: Field](point: Point[V]): Result[V] =
 stats(Point[Double](3.0, 1.0, 4.0))
 ```
 
-`Reify.outTyped[In, Out]` is the two-sided version of `Reify[F]`: `In`'s field labels declare the params, same as before, and
-`Out`'s field labels name the outputs — `build` returns an `Out[Expr]` instead of one `Expr`:
+Reifying it is the same call as `richFormula` above, `Out` swapped for `Result`:
 
 ```scala mdoc:silent
-import io.github.mercurievv.spireopencl.symbolic.TypedFormula2
-
 val statsFormula: TypedFormula2[Point, Result] = Reify.outTyped[Point, Result](uniforms = Nil) { (_, point) =>
   stats(point)
 }
@@ -128,8 +137,9 @@ val statsFormula: TypedFormula2[Point, Result] = Reify.outTyped[Point, Result](u
 statsFormula.outputNames
 ```
 
-`ClKernel.compileT2` + `TypedKernel2.renderT` launch it exactly like `renderUnsafeT`'s no-`out` overload, but hand back an
-`Out[Float]` instead of a single `Float` — every output the formula declared, from one launch:
+`ClKernel.compileT2` + `TypedKernel2.renderT` launch it exactly like `richFormula` above — `Point[Float]` in, `Out[Float]` out —
+except this `Out[Float]` is a `Result[Float]` with two fields instead of `Answer[Float]`'s one, both produced by the same
+launch:
 
 ```scala mdoc:compile-only
 import cats.effect.IO
@@ -174,19 +184,22 @@ val statefulFormula: TypedFormula[Args] = Reify.statefulVarTyped[Args](uniformFi
 statefulFormula.formula.states
 ```
 
-`ClKernel.compileT` keeps `Args` attached to the compiled kernel, so `TypedKernel.renderUnsafeT` only accepts an
-`Args[Float]` — a case class from another formula, even sharing a field name, is a compile error here, not a launch
-that silently reads the wrong value. This kernel is also `size = 1`, so each launch's answer comes back directly,
-with no `out` array to allocate or read:
+`Reify.statefulVarTyped` predates `Reify.outTyped` and only types `In`, not `Out` — there is no `Var`/`.at` program that returns
+more than one cell's worth of output, so `TypedFormula[Args]` never needed an `Out` of its own. `TypedKernel.renderT[Answer]`
+closes that gap from the launch side instead: it wraps `TypedKernel.renderUnsafeT`'s bare `Float` in the same one-field
+`Answer[Float]` `richFormula` above returns, so every typed launch in this library answers `Out[Float]`, not a mix of `Float`
+and `Out[Float]` depending on which formula built the kernel. `ClKernel.compileT` still keeps `Args` attached to the compiled
+kernel, so a case class from another formula, even sharing a field name, is a compile error here, not a launch that silently
+reads the wrong value:
 
 ```scala mdoc:compile-only
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import io.github.mercurievv.spireopencl.opencl.{ClKernel, renderUnsafeT}
+import io.github.mercurievv.spireopencl.opencl.{ClKernel, renderT}
 
-val ema: Vector[Float] =
+val ema: Vector[Answer[Float]] =
   ClKernel.compileT[IO, Args](statefulFormula, size = 1).use { kernel =>
-    IO { Vector.fill(5)(1.0f).map(sample => kernel.renderUnsafeT(Args[Float](alpha = 0.5f, x = sample))) }
+    IO { Vector.fill(5)(1.0f).map(sample => kernel.renderT[Answer](Args[Float](alpha = 0.5f, x = sample))) }
   }.unsafeRunSync()
 ```
 

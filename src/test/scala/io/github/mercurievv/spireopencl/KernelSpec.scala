@@ -173,6 +173,25 @@ object KernelSpec extends SimpleIOSuite:
     }
   }
 
+  test("TypedKernel.renderT wraps the single output in a one-field Out, and refuses an Out with more than one field") {
+    import io.github.mercurievv.spireopencl.opencl.renderT
+    case class Point[V](x: V, y: V, z: V)
+    case class Answer[V](value: V)
+    case class TooWide[V](a: V, b: V)
+    val pointFormula = Reify[Point](uniforms = Nil) { (_, pt) =>
+      Expr.add(Expr.add(pt.x, pt.y), pt.z)
+    }
+    ClKernel.compileT[IO, Point](pointFormula, size = 1).use { kernel =>
+      IO {
+        val refused =
+          try { val _ = kernel.renderT[TooWide](Point[Float](3.0f, 1.0f, 4.0f)); false }
+          catch case _: IllegalArgumentException => true
+        expect(kernel.renderT[Answer](Point[Float](3.0f, 1.0f, 4.0f)).value == 8.0f) &&
+        expect(refused)
+      }
+    }
+  }
+
   test("Reify.outTyped + ClKernel.compileT2 + TypedKernel2.renderT launch one kernel producing several named outputs") {
     import io.github.mercurievv.spireopencl.opencl.renderT
     case class Point[V](x: V, y: V, z: V)

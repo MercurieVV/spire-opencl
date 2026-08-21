@@ -953,6 +953,29 @@ extension [F[_], Args[_]](kernel: TypedKernel[F, Args])
   inline def writeInputsT(data: Args[Array[Float]])(using Mirror.ProductOf[Args[String]]): Unit =
     kernel.kernel.writeInputsT[Args](data)
 
+  /** [[Kernel.renderUnsafeT]]'s single value, wrapped as a one-field `Out[Float]` instead of a bare `Float` — the same return shape
+    * [[TypedKernel2.renderT]] hands back for a formula declared with more than one output, so a caller launching against this library sees one shape,
+    * `Out[Float]`, regardless of how many outputs a particular formula happens to have.
+    *
+    * `Out` must have exactly one field: there is one value here to put in it, and a second field would just be a copy of the first rather than a
+    * second answer — declare the formula with `Reify.outTyped` + [[TypedKernel2.renderT]] instead once there is more than one value to return.
+    */
+  inline def renderT[Out[_]](
+    args: Args[Float],
+  )(using Mirror.ProductOf[Args[String]],
+    Mirror.ProductOf[Args[Float]],
+    Mirror.ProductOf[Out[String]],
+    Mirror.ProductOf[Out[Float]],
+  ): Out[Float] =
+    val names = FieldLabels.namesOf[Out]
+    if names.size != 1 then
+      throw new IllegalArgumentException(
+        s"renderT wraps one value in a one-field Out, but $names has ${names.size} fields; " +
+          "use Reify.outTyped + TypedKernel2.renderT for a formula with more than one output",
+      )
+    val value = kernel.renderUnsafeT(args)
+    FieldLabels.fill[Out, Float](_ => value)
+
 /** A `Kernel[F]` compiled from a `TypedFormula2[In, Out]` — see [[ClKernel.compileT2]]. `outputNames` is `Out`'s field order, carried alongside the
   * plain `Kernel` so [[renderT]] can reassemble a launch's several outputs into one `Out[Float]` without re-deriving field names at every call.
   */
