@@ -3,6 +3,9 @@ package io.github.mercurievv.spireopencl.symbolic
 import cats.Id
 import cats.data.StateT
 import io.github.mercurievv.spireopencl.symbolic.state.{Store, VarId}
+import io.github.mercurievv.spireopencl.util.FieldLabels
+
+import scala.deriving.Mirror
 
 /** A reified computation: the tree, plus the arguments it expects at run time.
   *
@@ -63,6 +66,17 @@ final case class Formula(
   /** Scale the result. Applied above the `Expr.Sum` when there is one, so it costs one multiply per work-item rather than one per batch element. */
   def scaledBy(gain: Double): Formula = copy(body = Expr.mul(body, Expr.Const(gain)))
 
+/** A `Formula` tagged, at the type level only, with the case class its uniforms and params were declared from — `F` here is a phantom, carried but
+  * never inspected.
+  *
+  * Why this exists: `formula.uniforms`/`formula.params` are plain `List[String]`, so nothing stops compiling a `Kernel` from one formula and then
+  * launching it with a case class meant for a different one — a mismatch that only shows up as a runtime "missing field" once the names happen not to
+  * line up, or worse, not at all when they coincidentally do. `ClKernel.compileT` turns this `F` into the one type its `TypedKernel.renderUnsafeT`
+  * will accept, so a formula built for `Args` and a launch built for some other case class fail to compile rather than fail — or silently succeed on
+  * the wrong data — at run time.
+  */
+final case class TypedFormula[F[_]](formula: Formula)
+
 /** Compose → IR.
   *
   * A computation is an opaque Scala function; the way to see inside it is to apply it to symbolic inputs and keep what comes back. There is no macro
@@ -79,6 +93,27 @@ object Reify:
       build(
         lookup("uniform", uniforms, Expr.Uniform.apply),
         lookup("param", params, Expr.Param.apply),
+      ),
+      uniforms,
+      params,
+    )
+
+  /** As `apply`, but `params` is read off a case class's own field labels instead of given as a list — `Reify[Point](uniforms = Nil) { (_, point) =>
+    * richProgram(point) }` declares `params = List("x", "y", "z")` and builds `Point[Expr]` for `case class Point[V](x: V, y: V, z: V)`, both from
+    * `Point` alone, instead of naming `"x", "y", "z"` once for `Formula` and again through `paramsAs`.
+    */
+  inline def apply[F[_]](
+    uniforms: List[String],
+  )(
+    build: (String => Expr, F[Expr]) => Expr,
+  )(using Mirror.ProductOf[F[String]],
+    Mirror.ProductOf[F[Expr]],
+  ): Formula =
+    val params = FieldLabels.namesOf[F]
+    Formula(
+      build(
+        lookup("uniform", uniforms, Expr.Uniform.apply),
+        FieldLabels.fill[F, Expr](lookup("param", params, Expr.Param.apply)),
       ),
       uniforms,
       params,
@@ -152,6 +187,25 @@ object Reify:
       updates = finalStore.map((id, next) => name(id) -> next),
     )
 
+  /** As `statefulVar`, but `uniforms` and `params` both come from one case class's field labels — `uniformFields` says which of `F`'s fields are
+    * uniforms, everything else is a param — and `program` reads them back off one `F[Expr]` instead of two separate lookups. The result is a
+    * `TypedFormula[F]` rather than a bare `Formula`, so `ClKernel.compileT[Eff, F]` and, downstream, `TypedKernel.renderUnsafeT` are pinned to the
+    * exact same `F` used here: an `Args` built for a different formula cannot be handed to this one's kernel.
+    */
+  inline def statefulVarTyped[F[_]](
+    uniformFields: Set[String],
+  )(
+    program: F[Expr] => StateT[Id, Store[Expr], Expr],
+  )(using Mirror.ProductOf[F[String]],
+    Mirror.ProductOf[F[Expr]],
+  ): TypedFormula[F] =
+    val (uniformNames, paramNames) = FieldLabels.namesOf[F].partition(uniformFields)
+    TypedFormula(
+      statefulVar(uniformNames, paramNames) { (uniform, param) =>
+        program(FieldLabels.fill[F, Expr](name => if uniformFields(name) then uniform(name) else param(name)))
+      },
+    )
+
   private def lookup(kind: String, declared: List[String], node: String => Expr): String => Expr =
     val table = declared.map(n => n -> node(n)).toMap
     name =>
@@ -159,3 +213,12 @@ object Reify:
         name,
         throw new IllegalArgumentException(s"undeclared $kind '$name'; declared: $declared"),
       )
+
+  /** Fill a case class from a lookup instead of naming each field twice — `paramsAs[Point](p)` is `Point(p("x"), p("y"), p("z"))` for
+    * `case class Point[V](x: V, y: V, z: V)`, built from the case class's own field labels in their declared order. That order is also the order
+    * `params` (or `uniforms`/`inputs`) must declare on `Formula`, since it becomes the binding order there.
+    *
+    * Works with any of the lookups `apply`/`arrays`/`stateful` hand to `build` — `paramsAs[Point](param)`, `paramsAs[Point](uniform)`, etc.
+    */
+  inline def paramsAs[F[_]](lookup: String => Expr)(using Mirror.ProductOf[F[String]], Mirror.ProductOf[F[Expr]]): F[Expr] =
+    FieldLabels.fill[F, Expr](lookup)

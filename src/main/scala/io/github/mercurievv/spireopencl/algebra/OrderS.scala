@@ -1,5 +1,8 @@
 package io.github.mercurievv.spireopencl.algebra
 
+import _root_.algebra.ring.Field
+import spire.algebra.Order
+
 /** Comparison that returns a **value of the same type**, not a `Boolean`.
   *
   * `a >> b` is 1 where the comparison holds and 0 where it does not, so a comparison can be multiplied into an expression as a mask. That is what
@@ -15,8 +18,9 @@ trait OrderS[@specialized(Int, Long, Float, Double) A]:
 
 object OrderS:
 
-  given OrderS[Double]:
+  /** Any ordered field gets masking for free — `Double`, `Float`, `Rational`, whatever `V` a caller picks — instead of pinning this to `Double`. */
+  given orderedField[V](using F: Field[V], O: Order[V]): OrderS[V] with
 
-    extension (a: Double)
-      def greaterThan(a2: Double): Double = if a > a2 then 1.0 else 0.0
-      infix def <<(a2: Double): Double = if a < a2 then 1.0 else 0.0
+    extension (a: V)
+      def greaterThan(a2: V): V = if O.gt(a, a2) then F.one else F.zero
+      infix def <<(a2: V): V = if O.lt(a, a2) then F.one else F.zero

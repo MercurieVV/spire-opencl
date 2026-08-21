@@ -1,9 +1,12 @@
 package io.github.mercurievv.spireopencl.opencl
 
 import cats.effect.{Resource, Sync}
-import io.github.mercurievv.spireopencl.symbolic.Formula
+import io.github.mercurievv.spireopencl.symbolic.{Formula, TypedFormula}
+import io.github.mercurievv.spireopencl.util.FieldLabels
 import org.jocl.*
 import org.jocl.CL.*
+
+import scala.deriving.Mirror
 
 /** An opaque, immutable, compiled artifact.
   *
@@ -24,6 +27,14 @@ trait Kernel[F[_]]:
 
   /** Whether this kernel reduces over the batch itself. A reduced kernel writes `size` floats — the total — instead of one slice per element. */
   def reduced: Boolean
+
+  /** The formula's declared uniform names, in binding order. Exposed so a caller can split a combined case class of arguments into the uniform/param
+    * maps `render`/`renderUnsafe` want — see [[ClKernel.renderUnsafeT]].
+    */
+  def uniformNames: List[String]
+
+  /** The formula's declared per-element parameter names, in binding order. See [[uniformNames]]. */
+  def paramNames: List[String]
 
   /** Fill `out` for a single batch element. `uniforms` and `params` supply the formula's declared arguments. */
   def render(uniforms: Map[String, Float], params: Map[String, Float], out: Array[Float]): F[Unit]
@@ -324,6 +335,19 @@ object ClKernel:
   ): Resource[F, Kernel[F]] =
     Resource.eval(defaultDevice[F]).flatMap(compileOn(_, formula, size, maxBatchSize, hostVisibleOutput, outputSlots))
 
+  /** As `compile`, for a `TypedFormula[Args]` — `Reify.statefulVarTyped[Args]`, for instance. The `Kernel` comes back wrapped as
+    * `TypedKernel[F, Args]`, whose `renderUnsafeT` accepts only `Args[Float]`: a case class built for a different formula is a compile error here,
+    * not a name mismatch discovered at launch.
+    */
+  def compileT[F[_]: Sync, Args[_]](
+    typed: TypedFormula[Args],
+    size: Int,
+    maxBatchSize: Int = DefaultMaxBatch,
+    hostVisibleOutput: Boolean = false,
+    outputSlots: Int = 1,
+  ): Resource[F, TypedKernel[F, Args]] =
+    compile[F](typed.formula, size, maxBatchSize, hostVisibleOutput, outputSlots).map(TypedKernel(_))
+
   /** `hostVisibleOutput` allocates the output where the host can map it, which is what makes [[Kernel.renderBatchMappedUnsafe]] cheap. Off by
     * default: on a device with its own memory it can place the buffer somewhere the kernel writes to more slowly, and a caller who reads back the
     * ordinary way would pay for a facility it never uses.
@@ -338,7 +362,6 @@ object ClKernel:
   ): Resource[F, Kernel[F]] =
     val src = CodeGen(formula)
     val elementParams = formula.params
-    val uniformNames = formula.uniforms
     val stateNames = formula.states
     val inputNames = formula.inputs
     // The compile parameters, captured before the returned kernel shadows their names with its own members.
@@ -440,6 +463,8 @@ object ClKernel:
       val maxBatch: Int = maxBatchSize
       val size: Int = dim0
       val outputSlots: Int = slots
+      val uniformNames: List[String] = formula.uniforms
+      val paramNames: List[String] = formula.params
 
       /** Which slot the next launch writes. Rotates, so `outputSlots` launches can be in flight before one overwrites another. */
       private val nextSlot = new java.util.concurrent.atomic.AtomicInteger(0)
@@ -715,7 +740,7 @@ object ClKernel:
           def bind(size: Long, value: Pointer): Unit = clSetKernelArg(kernel, argIdx.getAndIncrement(), size, value)
 
           bind(Sizeof.cl_mem.toLong, Pointer.to(outBuffer))
-          uniformNames.foreach { name =>
+          formula.uniforms.foreach { name =>
             val value = uniforms.getOrElse(
               name,
               throw new IllegalArgumentException(s"missing uniform '$name'; got ${uniforms.keys.toList}"),
@@ -774,3 +799,53 @@ object ClKernel:
           onPhase("readback", System.nanoTime())
         slot
       }
+
+/** As [[Kernel.renderUnsafe]], but the two `Map[String, Float]`s come from one case class instead — `renderUnsafeT(Args(alpha = 0.5f, x = sample),
+  * out)` for `case class Args[T](alpha: T, x: T)` where `alpha` is a uniform and `x` a parameter is the same launch as
+  * `renderUnsafe(Map("alpha" -> 0.5f), Map("x" -> sample), out)`.
+  *
+  * Which field is a uniform and which a parameter is read off the compiled kernel's own [[Kernel.uniformNames]]/[[Kernel.paramNames]], not off `In` —
+  * so one case class can carry both without saying which is which twice. A field whose name matches neither is simply unused; a declared name with no
+  * matching field fails fast, naming what's missing.
+  *
+  * Untyped: nothing here ties `In` to the formula the kernel was compiled from, so a case class meant for a different formula that happens to share a
+  * field name still compiles and launches, silently reading the wrong value. Prefer [[ClKernel.compileT]] + [[TypedKernel.renderUnsafeT]], which fix
+  * `In` at compile time from the formula itself — reach for this one where there is no `TypedFormula`, e.g. a kernel with array `inputs` or
+  * hand-written `Formula.stateful` cells that were never given a single case-class shape.
+  */
+extension [F[_]](kernel: Kernel[F])
+
+  inline def renderUnsafeT[In[_]](
+    args: In[Float],
+    out: Array[Float],
+  )(using Mirror.ProductOf[In[String]],
+    Mirror.ProductOf[In[Float]],
+  ): Unit =
+    val byName = FieldLabels.read[In, Float](args).toMap
+    def floatField(name: String): Float =
+      byName.getOrElse(
+        name,
+        throw new IllegalArgumentException(s"missing field '$name' in $args; declared: ${byName.keys.toList}"),
+      )
+    val uniforms = kernel.uniformNames.map(n => n -> floatField(n)).toMap
+    val params = kernel.paramNames.map(n => n -> floatField(n)).toMap
+    kernel.renderUnsafe(uniforms, params, out)
+
+/** A `Kernel[F]` compiled from a `TypedFormula[Args]`, still carrying `Args` — see [[ClKernel.compileT]]. Everything but the launch call stays on the
+  * plain `Kernel`, reachable via `.kernel`: batching, arrays, state readback, and the rest neither know nor need `Args`.
+  */
+final case class TypedKernel[F[_], Args[_]](kernel: Kernel[F])
+
+/** [[Kernel.renderUnsafeT]] pinned to the `Args` this kernel was compiled for — the whole reason `TypedKernel` exists. Passing a case class built for
+  * a different `TypedFormula` is a type error here, where the untyped `Kernel.renderUnsafeT` would only catch it, if at all, as a runtime "missing
+  * field" once the names happened not to match.
+  */
+extension [F[_], Args[_]](kernel: TypedKernel[F, Args])
+
+  inline def renderUnsafeT(
+    args: Args[Float],
+    out: Array[Float],
+  )(using Mirror.ProductOf[Args[String]],
+    Mirror.ProductOf[Args[Float]],
+  ): Unit =
+    kernel.kernel.renderUnsafeT[Args](args, out)

@@ -105,6 +105,48 @@ object KernelSpec extends SimpleIOSuite:
     }
   }
 
+  test("renderUnsafeT splits one case class into the uniform/param maps by field name") {
+    import io.github.mercurievv.spireopencl.opencl.renderUnsafeT
+    case class Args[T](gate: T, dt: T, freq: T, t0: T)
+    val args = Args[Float](gate = 0.4f, dt = 0.01f, freq = 3.0f, t0 = 0.25f)
+    val params = Map("freq" -> args.freq, "gate" -> args.gate)
+    ClKernel.compile[IO](formula, size, 1).use { kernel =>
+      IO {
+        val fromMaps = new Array[Float](size)
+        kernel.renderUnsafe(uniforms, params, fromMaps)
+        val fromCaseClass = new Array[Float](size)
+        kernel.renderUnsafeT(args, fromCaseClass)
+        expect(fromCaseClass.sameElements(fromMaps))
+      }
+    }
+  }
+
+  test("TypedKernel.renderUnsafeT is pinned to the case class its formula was built from") {
+    import io.github.mercurievv.spireopencl.opencl.renderUnsafeT
+    case class EmaArgs[T](alpha: T, x: T)
+
+    def smooth(args: EmaArgs[Expr]): Var[Id, Expr, Expr] =
+      StateT { prev =>
+        val next = Expr.add(prev, Expr.mul(Expr.add(args.x, Expr.neg(prev)), args.alpha))
+        (next, prev)
+      }
+
+    val emaFormula = Reify.statefulVarTyped[EmaArgs](uniformFields = Set("alpha")) { args =>
+      smooth(args).at[Store[Expr]](0)
+    }
+
+    ClKernel.compileT[IO, EmaArgs](emaFormula, size = 1).use { kernel =>
+      IO {
+        val out = new Array[Float](1)
+        // .at outputs the *previous* state, then stores the update — so after 5 launches out(0) is the state after
+        // 4 updates, not 5.
+        val expectedAfterFive = (1 to 4).foldLeft(0.0)((prev, _) => prev + (1.0 - prev) * 0.5)
+        (1 to 5).foreach(_ => kernel.renderUnsafeT(EmaArgs[Float](alpha = 0.5f, x = 1.0f), out))
+        expect(math.abs(out(0) - expectedAfterFive) < 1e-4)
+      }
+    }
+  }
+
   test("a formula with no parameters at all still compiles and runs") {
     val constant = Reify(List("dx"), Nil)((uniform, _) => Expr.mul(Expr.Index, uniform("dx")))
     ClKernel.compile[IO](constant, size, 1).use { kernel =>

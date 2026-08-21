@@ -110,6 +110,16 @@ object ExprSpec extends SimpleIOSuite:
     expect(Expr.eval(env, index = 0.0)(wrapped) == Modulo[Double].mod(7.5, math.Pi * 2))
   }
 
+  private case class Point[V](x: V, y: V, z: V)
+
+  pureTest("paramsAs fills a case class from field labels, in field order") {
+    val formula = Reify(Nil, List("x", "y", "z")) { (_, param) =>
+      val pt = Reify.paramsAs[Point](param)
+      Expr.add(Expr.add(pt.x, pt.y), pt.z)
+    }
+    expect(formula.body == Expr.add(Expr.add(Expr.Param("x"), Expr.Param("y")), Expr.Param("z")))
+  }
+
   pureTest("summed is idempotent and scaledBy lands above the reduction") {
     val formula = Reify(Nil, List("v"))((_, param) => param("v")).summed
     expect(formula.summed == formula) &&
