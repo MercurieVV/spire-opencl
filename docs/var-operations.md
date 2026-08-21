@@ -42,8 +42,9 @@ richFormula.formula.params
 they can't drift apart. `Reify.paramsAs[Point](p)` is still there for a formula whose params aren't all one case class, or
 where `build` wants the raw lookup for other reasons.
 
-`ClKernel.compileT` + `TypedKernel.renderUnsafeT` launch it with a `Point[Float]` directly — no `Map`, and no other case
-class's `Point`-shaped lookalike will typecheck here:
+`ClKernel.compileT` + `TypedKernel.renderUnsafeT` launch it with a `Point[Float]` directly — no `Map`, no other case
+class's `Point`-shaped lookalike will typecheck here, and, for a kernel compiled with `size = 1`, no `out` array either:
+the one float the launch produces comes back as the return value:
 
 ```scala mdoc:compile-only
 import cats.effect.IO
@@ -52,11 +53,7 @@ import io.github.mercurievv.spireopencl.opencl.{ClKernel, renderUnsafeT}
 
 val richResult: Float =
   ClKernel.compileT[IO, Point](richFormula, size = 1, maxBatchSize = 1).use { kernel =>
-    IO {
-      val out = new Array[Float](1)
-      kernel.renderUnsafeT(Point[Float](3.0f, 1.0f, 4.0f), out)
-      out(0)
-    }
+    IO { kernel.renderUnsafeT(Point[Float](3.0f, 1.0f, 4.0f)) }
   }.unsafeRunSync()
 ```
 
@@ -136,7 +133,8 @@ statefulFormula.formula.states
 
 `ClKernel.compileT` keeps `Args` attached to the compiled kernel, so `TypedKernel.renderUnsafeT` only accepts an
 `Args[Float]` — a case class from another formula, even sharing a field name, is a compile error here, not a launch
-that silently reads the wrong value:
+that silently reads the wrong value. This kernel is also `size = 1`, so each launch's answer comes back directly,
+with no `out` array to allocate or read:
 
 ```scala mdoc:compile-only
 import cats.effect.IO
@@ -145,13 +143,7 @@ import io.github.mercurievv.spireopencl.opencl.{ClKernel, renderUnsafeT}
 
 val ema: Vector[Float] =
   ClKernel.compileT[IO, Args](statefulFormula, size = 1).use { kernel =>
-    IO {
-      val out = new Array[Float](1)
-      Vector.fill(5)(1.0f).map { sample =>
-        kernel.renderUnsafeT(Args[Float](alpha = 0.5f, x = sample), out)
-        out(0)
-      }
-    }
+    IO { Vector.fill(5)(1.0f).map(sample => kernel.renderUnsafeT(Args[Float](alpha = 0.5f, x = sample))) }
   }.unsafeRunSync()
 ```
 

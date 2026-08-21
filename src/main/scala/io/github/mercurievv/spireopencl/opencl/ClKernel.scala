@@ -831,6 +831,26 @@ extension [F[_]](kernel: Kernel[F])
     val params = kernel.paramNames.map(n => n -> floatField(n)).toMap
     kernel.renderUnsafe(uniforms, params, out)
 
+  /** As `renderUnsafeT(args, out)`, but the output comes back as the return value instead of a caller-allocated `out` — for a kernel compiled with
+    * `size = 1`, where the single float that would have gone in `out(0)` is the whole answer, this is `richProgram(point): V` at the call site
+    * instead of `richProgram`'s device echo needing an `Array[Float]` and an index to read it back.
+    *
+    * Refuses a kernel compiled with `size` other than 1, naming it, rather than silently handing back only the first of several floats.
+    */
+  inline def renderUnsafeT[In[_]](
+    args: In[Float],
+  )(using Mirror.ProductOf[In[String]],
+    Mirror.ProductOf[In[Float]],
+  ): Float =
+    if kernel.size != 1 then
+      throw new IllegalStateException(
+        s"renderUnsafeT with no 'out' returns the single output of a size = 1 kernel; this one was compiled with size = ${kernel.size} — " +
+          "use renderUnsafeT(args, out) and read the out array instead",
+      )
+    val out = new Array[Float](1)
+    kernel.renderUnsafeT[In](args, out)
+    out(0)
+
 /** As [[Kernel.writeInputUnsafe]], but one call for every declared array instead of one per name — `writeInputsT(Point(xs, ys, zs))` for
   * `case class Point[V](x: V, y: V, z: V)` is `writeInputUnsafe("x", xs); writeInputUnsafe("y", ys); writeInputUnsafe("z", zs)`.
   *
@@ -860,6 +880,14 @@ extension [F[_], Args[_]](kernel: TypedKernel[F, Args])
     Mirror.ProductOf[Args[Float]],
   ): Unit =
     kernel.kernel.renderUnsafeT[Args](args, out)
+
+  /** [[Kernel.renderUnsafeT]]'s return-the-answer overload, pinned to `Args` the same way the `out`-taking one above is. */
+  inline def renderUnsafeT(
+    args: Args[Float],
+  )(using Mirror.ProductOf[Args[String]],
+    Mirror.ProductOf[Args[Float]],
+  ): Float =
+    kernel.kernel.renderUnsafeT[Args](args)
 
   /** [[Kernel.writeInputsT]] pinned to the `Args` this kernel was compiled for — see [[ClKernel.compileT]] and `Reify.arraysTyped`. A `Point[Array[
     * Float]]` built for a different `TypedFormula` is a type error here rather than a name that happens, or fails, to line up.

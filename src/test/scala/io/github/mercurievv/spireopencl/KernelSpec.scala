@@ -121,7 +121,7 @@ object KernelSpec extends SimpleIOSuite:
     }
   }
 
-  test("TypedKernel.renderUnsafeT is pinned to the case class its formula was built from") {
+  test("TypedKernel.renderUnsafeT returns the answer directly for a size = 1 kernel, pinned to the case class its formula was built from") {
     import io.github.mercurievv.spireopencl.opencl.renderUnsafeT
     case class EmaArgs[T](alpha: T, x: T)
 
@@ -137,12 +137,11 @@ object KernelSpec extends SimpleIOSuite:
 
     ClKernel.compileT[IO, EmaArgs](emaFormula, size = 1).use { kernel =>
       IO {
-        val out = new Array[Float](1)
-        // .at outputs the *previous* state, then stores the update — so after 5 launches out(0) is the state after
-        // 4 updates, not 5.
+        // .at outputs the *previous* state, then stores the update — so after 5 launches the fifth answer is the
+        // state after 4 updates, not 5.
         val expectedAfterFive = (1 to 4).foldLeft(0.0)((prev, _) => prev + (1.0 - prev) * 0.5)
-        (1 to 5).foreach(_ => kernel.renderUnsafeT(EmaArgs[Float](alpha = 0.5f, x = 1.0f), out))
-        expect(math.abs(out(0) - expectedAfterFive) < 1e-4)
+        val outputs = (1 to 5).map(_ => kernel.renderUnsafeT(EmaArgs[Float](alpha = 0.5f, x = 1.0f)))
+        expect(math.abs(outputs.last - expectedAfterFive) < 1e-4)
       }
     }
   }
@@ -155,9 +154,21 @@ object KernelSpec extends SimpleIOSuite:
     }
     ClKernel.compileT[IO, Point](pointFormula, size = 1).use { kernel =>
       IO {
-        val out = new Array[Float](1)
-        kernel.renderUnsafeT(Point[Float](3.0f, 1.0f, 4.0f), out)
-        expect(out(0) == 8.0f)
+        expect(kernel.renderUnsafeT(Point[Float](3.0f, 1.0f, 4.0f)) == 8.0f)
+      }
+    }
+  }
+
+  test("renderUnsafeT with no out refuses a kernel not compiled for size = 1") {
+    import io.github.mercurievv.spireopencl.opencl.renderUnsafeT
+    case class Args[T](gate: T, dt: T, freq: T, t0: T)
+    val args = Args[Float](gate = 0.4f, dt = 0.01f, freq = 3.0f, t0 = 0.25f)
+    ClKernel.compile[IO](formula, size, 1).use { kernel =>
+      IO {
+        val refused =
+          try { val _ = kernel.renderUnsafeT(args); false }
+          catch case _: IllegalStateException => true
+        expect(refused)
       }
     }
   }
