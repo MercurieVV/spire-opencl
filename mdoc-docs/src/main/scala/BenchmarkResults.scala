@@ -15,10 +15,14 @@ object BenchmarkResults:
     */
   private final case class Phases(uploadUs: Double, launchUs: Double, readbackUs: Double)
 
+  /** Every arg but the last is a JSON results file; the last is the markdown to patch. Multiple files let a full multi-fork run and a smaller,
+    * targeted extension (different date, different config) contribute to the same table — `find`/`rows` below take whichever file's row matches
+    * first, so an extension file should introduce new benchmark/param combinations rather than override the main run's.
+    */
   def main(args: Array[String]): Unit =
-    val jsonPath = Path.of(args(0))
-    val markdownPath = Path.of(args(1))
-    val raw = read[ujson.Value](Files.readString(jsonPath)).arr.toSeq
+    val jsonPaths = args.init.map(Path.of(_)).toSeq
+    val markdownPath = Path.of(args.last)
+    val raw = jsonPaths.flatMap(jsonPath => read[ujson.Value](Files.readString(jsonPath)).arr.toSeq)
     val rows = raw.map { value =>
       val obj = value.obj
       val metric = obj("primaryMetric").obj
@@ -48,7 +52,7 @@ object BenchmarkResults:
     }.toMap
 
     val markdown = Files.readString(markdownPath)
-    val generated = render(jsonPath.getFileName.toString, rows, phases)
+    val generated = render(jsonPaths.map(_.getFileName.toString).mkString(", "), rows, phases)
     Files.writeString(
       markdownPath,
       markdown.replace("<!-- BENCHMARK_RESULTS -->", generated),
@@ -173,6 +177,26 @@ object BenchmarkResults:
       ),
       "",
       "Generator kernels derive values from `Expr.Index`; there is no input array upload.",
+      "",
+      "### Generator, `veryHeavy` (sin/exp/sqrt composed 4x)",
+      "",
+      "`heavy`'s body run 4 times over (`Bench.VeryHeavyDepth`), same traffic as `heavy`, 4x the " +
+        "arithmetic. Single-fork quick run, not the 3-fork config the rest of this page uses.",
+      "",
+      table(
+        Seq("size", "OpenCL", "plain while loop", "Spire on JVM"),
+        Seq("10000", "1000000", "10000000").map { size =>
+          Seq(
+            size,
+            fmt(find(rows, "GeneratorBench.openclVeryHeavy", size)),
+            fmt(find(rows, "GeneratorBench.plainVeryHeavy", size)),
+            fmt(find(rows, "GeneratorBench.spireVeryHeavy", size)),
+          )
+        },
+      ),
+      "",
+      "Device time barely moves between `heavy` and `veryHeavy`; CPU time scales with the added " +
+        "arithmetic, so the win grows with arithmetic intensity rather than staying fixed.",
       "",
       "### Depth sweep, 10^6 floats",
       "",

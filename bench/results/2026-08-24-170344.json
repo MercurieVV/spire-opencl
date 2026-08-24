@@ -1,0 +1,2692 @@
+[
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.breezeChain",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "10000"
+        },
+        "primaryMetric" : {
+            "score" : 60.99495501035548,
+            "scoreError" : 481.36835004547953,
+            "scoreConfidence" : [
+                -420.3733950351241,
+                542.363305055835
+            ],
+            "scorePercentiles" : {
+                "0.0" : 30.527766819548646,
+                "50.0" : 76.17015546952099,
+                "90.0" : 76.28694274199681,
+                "95.0" : 76.28694274199681,
+                "99.0" : 76.28694274199681,
+                "99.9" : 76.28694274199681,
+                "99.99" : 76.28694274199681,
+                "99.999" : 76.28694274199681,
+                "99.9999" : 76.28694274199681,
+                "100.0" : 76.28694274199681
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    30.527766819548646,
+                    76.28694274199681,
+                    76.17015546952099
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.breezeChain",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "1000000"
+        },
+        "primaryMetric" : {
+            "score" : 10009.270420528053,
+            "scoreError" : 858.1063766790925,
+            "scoreConfidence" : [
+                9151.164043848961,
+                10867.376797207146
+            ],
+            "scorePercentiles" : {
+                "0.0" : 9978.306514851485,
+                "50.0" : 9986.109326732674,
+                "90.0" : 10063.39542,
+                "95.0" : 10063.39542,
+                "99.0" : 10063.39542,
+                "99.9" : 10063.39542,
+                "99.99" : 10063.39542,
+                "99.999" : 10063.39542,
+                "99.9999" : 10063.39542,
+                "100.0" : 10063.39542
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    9986.109326732674,
+                    10063.39542,
+                    9978.306514851485
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.breezeChain",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "10000000"
+        },
+        "primaryMetric" : {
+            "score" : 101101.1458,
+            "scoreError" : 19081.864407405326,
+            "scoreConfidence" : [
+                82019.28139259467,
+                120183.01020740533
+            ],
+            "scorePercentiles" : {
+                "0.0" : 100315.1666,
+                "50.0" : 100699.9875,
+                "90.0" : 102288.2833,
+                "95.0" : 102288.2833,
+                "99.0" : 102288.2833,
+                "99.9" : 102288.2833,
+                "99.99" : 102288.2833,
+                "99.999" : 102288.2833,
+                "99.9999" : 102288.2833,
+                "100.0" : 102288.2833
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    102288.2833,
+                    100699.9875,
+                    100315.1666
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.openclChain",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "10000"
+        },
+        "primaryMetric" : {
+            "score" : 168.33853919769172,
+            "scoreError" : 65.95008278910757,
+            "scoreConfidence" : [
+                102.38845640858415,
+                234.28862198679928
+            ],
+            "scorePercentiles" : {
+                "0.0" : 165.0774141895221,
+                "50.0" : 167.7126362112322,
+                "90.0" : 172.22556719232088,
+                "95.0" : 172.22556719232088,
+                "99.0" : 172.22556719232088,
+                "99.9" : 172.22556719232088,
+                "99.99" : 172.22556719232088,
+                "99.999" : 172.22556719232088,
+                "99.9999" : 172.22556719232088,
+                "100.0" : 172.22556719232088
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    172.22556719232088,
+                    167.7126362112322,
+                    165.0774141895221
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+            "launchNs" : {
+                "score" : 1.04020418E8,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    1.04020418E8,
+                    1.04020418E8
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 3.3506985E7,
+                    "50.0" : 3.4320158E7,
+                    "90.0" : 3.6193275E7,
+                    "95.0" : 3.6193275E7,
+                    "99.0" : 3.6193275E7,
+                    "99.9" : 3.6193275E7,
+                    "99.99" : 3.6193275E7,
+                    "99.999" : 3.6193275E7,
+                    "99.9999" : 3.6193275E7,
+                    "100.0" : 3.6193275E7
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        3.3506985E7,
+                        3.4320158E7,
+                        3.6193275E7
+                    ]
+                ]
+            },
+            "ops" : {
+                "score" : 17888.0,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    17888.0,
+                    17888.0
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 5834.0,
+                    "50.0" : 5965.0,
+                    "90.0" : 6089.0,
+                    "95.0" : 6089.0,
+                    "99.0" : 6089.0,
+                    "99.9" : 6089.0,
+                    "99.99" : 6089.0,
+                    "99.999" : 6089.0,
+                    "99.9999" : 6089.0,
+                    "100.0" : 6089.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        5834.0,
+                        5965.0,
+                        6089.0
+                    ]
+                ]
+            },
+            "readbackNs" : {
+                "score" : 2.902645684E9,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    2.902645684E9,
+                    2.902645684E9
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 9.64870146E8,
+                    "50.0" : 9.67699725E8,
+                    "90.0" : 9.70075813E8,
+                    "95.0" : 9.70075813E8,
+                    "99.0" : 9.70075813E8,
+                    "99.9" : 9.70075813E8,
+                    "99.99" : 9.70075813E8,
+                    "99.999" : 9.70075813E8,
+                    "99.9999" : 9.70075813E8,
+                    "100.0" : 9.70075813E8
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        9.70075813E8,
+                        9.64870146E8,
+                        9.67699725E8
+                    ]
+                ]
+            },
+            "uploadNs" : {
+                "score" : 485164.0,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    485164.0,
+                    485164.0
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 153699.0,
+                    "50.0" : 162710.0,
+                    "90.0" : 168755.0,
+                    "95.0" : 168755.0,
+                    "99.0" : 168755.0,
+                    "99.9" : 168755.0,
+                    "99.99" : 168755.0,
+                    "99.999" : 168755.0,
+                    "99.9999" : 168755.0,
+                    "100.0" : 168755.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        153699.0,
+                        162710.0,
+                        168755.0
+                    ]
+                ]
+            }
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.openclChain",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "1000000"
+        },
+        "primaryMetric" : {
+            "score" : 340.5002750802265,
+            "scoreError" : 227.9532351036343,
+            "scoreConfidence" : [
+                112.5470399765922,
+                568.4535101838608
+            ],
+            "scorePercentiles" : {
+                "0.0" : 328.22127329192546,
+                "50.0" : 340.0791538461539,
+                "90.0" : 353.20039810260016,
+                "95.0" : 353.20039810260016,
+                "99.0" : 353.20039810260016,
+                "99.9" : 353.20039810260016,
+                "99.99" : 353.20039810260016,
+                "99.999" : 353.20039810260016,
+                "99.9999" : 353.20039810260016,
+                "100.0" : 353.20039810260016
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    353.20039810260016,
+                    328.22127329192546,
+                    340.0791538461539
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+            "launchNs" : {
+                "score" : 5.6186798E7,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    5.6186798E7,
+                    5.6186798E7
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 1.8206863E7,
+                    "50.0" : 1.8802075E7,
+                    "90.0" : 1.917786E7,
+                    "95.0" : 1.917786E7,
+                    "99.0" : 1.917786E7,
+                    "99.9" : 1.917786E7,
+                    "99.99" : 1.917786E7,
+                    "99.999" : 1.917786E7,
+                    "99.9999" : 1.917786E7,
+                    "100.0" : 1.917786E7
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        1.8802075E7,
+                        1.917786E7,
+                        1.8206863E7
+                    ]
+                ]
+            },
+            "ops" : {
+                "score" : 8856.0,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    8856.0,
+                    8856.0
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 2846.0,
+                    "50.0" : 2951.0,
+                    "90.0" : 3059.0,
+                    "95.0" : 3059.0,
+                    "99.0" : 3059.0,
+                    "99.9" : 3059.0,
+                    "99.99" : 3059.0,
+                    "99.999" : 3059.0,
+                    "99.9999" : 3059.0,
+                    "100.0" : 3059.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        2846.0,
+                        3059.0,
+                        2951.0
+                    ]
+                ]
+            },
+            "readbackNs" : {
+                "score" : 2.954441536E9,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    2.954441536E9,
+                    2.954441536E9
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 9.84253885E8,
+                    "50.0" : 9.84802792E8,
+                    "90.0" : 9.85384859E8,
+                    "95.0" : 9.85384859E8,
+                    "99.0" : 9.85384859E8,
+                    "99.9" : 9.85384859E8,
+                    "99.99" : 9.85384859E8,
+                    "99.999" : 9.85384859E8,
+                    "99.9999" : 9.85384859E8,
+                    "100.0" : 9.85384859E8
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        9.85384859E8,
+                        9.84253885E8,
+                        9.84802792E8
+                    ]
+                ]
+            },
+            "uploadNs" : {
+                "score" : 562961.0,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    562961.0,
+                    562961.0
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 80507.0,
+                    "50.0" : 81104.0,
+                    "90.0" : 401350.0,
+                    "95.0" : 401350.0,
+                    "99.0" : 401350.0,
+                    "99.9" : 401350.0,
+                    "99.99" : 401350.0,
+                    "99.999" : 401350.0,
+                    "99.9999" : 401350.0,
+                    "100.0" : 401350.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        401350.0,
+                        80507.0,
+                        81104.0
+                    ]
+                ]
+            }
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.openclChain",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "10000000"
+        },
+        "primaryMetric" : {
+            "score" : 1802.7476681548062,
+            "scoreError" : 891.2382668797658,
+            "scoreConfidence" : [
+                911.5094012750404,
+                2693.985935034572
+            ],
+            "scorePercentiles" : {
+                "0.0" : 1773.6729240282687,
+                "50.0" : 1775.4222819148936,
+                "90.0" : 1859.1477985212568,
+                "95.0" : 1859.1477985212568,
+                "99.0" : 1859.1477985212568,
+                "99.9" : 1859.1477985212568,
+                "99.99" : 1859.1477985212568,
+                "99.999" : 1859.1477985212568,
+                "99.9999" : 1859.1477985212568,
+                "100.0" : 1859.1477985212568
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    1775.4222819148936,
+                    1773.6729240282687,
+                    1859.1477985212568
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+            "launchNs" : {
+                "score" : 1.7195427E7,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    1.7195427E7,
+                    1.7195427E7
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 5598212.0,
+                    "50.0" : 5675925.0,
+                    "90.0" : 5921290.0,
+                    "95.0" : 5921290.0,
+                    "99.0" : 5921290.0,
+                    "99.9" : 5921290.0,
+                    "99.99" : 5921290.0,
+                    "99.999" : 5921290.0,
+                    "99.9999" : 5921290.0,
+                    "100.0" : 5921290.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        5921290.0,
+                        5598212.0,
+                        5675925.0
+                    ]
+                ]
+            },
+            "ops" : {
+                "score" : 1671.0,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    1671.0,
+                    1671.0
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 541.0,
+                    "50.0" : 564.0,
+                    "90.0" : 566.0,
+                    "95.0" : 566.0,
+                    "99.0" : 566.0,
+                    "99.9" : 566.0,
+                    "99.99" : 566.0,
+                    "99.999" : 566.0,
+                    "99.9999" : 566.0,
+                    "100.0" : 566.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        564.0,
+                        566.0,
+                        541.0
+                    ]
+                ]
+            },
+            "readbackNs" : {
+                "score" : 2.990689867E9,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    2.990689867E9,
+                    2.990689867E9
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 9.94415079E8,
+                    "50.0" : 9.97339543E8,
+                    "90.0" : 9.98935245E8,
+                    "95.0" : 9.98935245E8,
+                    "99.0" : 9.98935245E8,
+                    "99.9" : 9.98935245E8,
+                    "99.99" : 9.98935245E8,
+                    "99.999" : 9.98935245E8,
+                    "99.9999" : 9.98935245E8,
+                    "100.0" : 9.98935245E8
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        9.94415079E8,
+                        9.97339543E8,
+                        9.98935245E8
+                    ]
+                ]
+            },
+            "uploadNs" : {
+                "score" : 2189801.0,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    2189801.0,
+                    2189801.0
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 651747.0,
+                    "50.0" : 679686.0,
+                    "90.0" : 858368.0,
+                    "95.0" : 858368.0,
+                    "99.0" : 858368.0,
+                    "99.9" : 858368.0,
+                    "99.99" : 858368.0,
+                    "99.999" : 858368.0,
+                    "99.9999" : 858368.0,
+                    "100.0" : 858368.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        651747.0,
+                        679686.0,
+                        858368.0
+                    ]
+                ]
+            }
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.openclHeavy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "10000"
+        },
+        "primaryMetric" : {
+            "score" : 172.06700463573307,
+            "scoreError" : 147.8029385544164,
+            "scoreConfidence" : [
+                24.264066081316685,
+                319.86994319014946
+            ],
+            "scorePercentiles" : {
+                "0.0" : 166.33962154558995,
+                "50.0" : 168.5249663186258,
+                "90.0" : 181.33642604298356,
+                "95.0" : 181.33642604298356,
+                "99.0" : 181.33642604298356,
+                "99.9" : 181.33642604298356,
+                "99.99" : 181.33642604298356,
+                "99.999" : 181.33642604298356,
+                "99.9999" : 181.33642604298356,
+                "100.0" : 181.33642604298356
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    181.33642604298356,
+                    168.5249663186258,
+                    166.33962154558995
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+            "launchNs" : {
+                "score" : 8.6349438E7,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    8.6349438E7,
+                    8.6349438E7
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 2.7972102E7,
+                    "50.0" : 2.901814E7,
+                    "90.0" : 2.9359196E7,
+                    "95.0" : 2.9359196E7,
+                    "99.0" : 2.9359196E7,
+                    "99.9" : 2.9359196E7,
+                    "99.99" : 2.9359196E7,
+                    "99.999" : 2.9359196E7,
+                    "99.9999" : 2.9359196E7,
+                    "100.0" : 2.9359196E7
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        2.901814E7,
+                        2.9359196E7,
+                        2.7972102E7
+                    ]
+                ]
+            },
+            "ops" : {
+                "score" : 17518.0,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    17518.0,
+                    17518.0
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 5537.0,
+                    "50.0" : 5938.0,
+                    "90.0" : 6043.0,
+                    "95.0" : 6043.0,
+                    "99.0" : 6043.0,
+                    "99.9" : 6043.0,
+                    "99.99" : 6043.0,
+                    "99.999" : 6043.0,
+                    "99.9999" : 6043.0,
+                    "100.0" : 6043.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        5537.0,
+                        5938.0,
+                        6043.0
+                    ]
+                ]
+            },
+            "readbackNs" : {
+                "score" : 2.918861265E9,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    2.918861265E9,
+                    2.918861265E9
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 9.69751227E8,
+                    "50.0" : 9.73499435E8,
+                    "90.0" : 9.75610603E8,
+                    "95.0" : 9.75610603E8,
+                    "99.0" : 9.75610603E8,
+                    "99.9" : 9.75610603E8,
+                    "99.99" : 9.75610603E8,
+                    "99.999" : 9.75610603E8,
+                    "99.9999" : 9.75610603E8,
+                    "100.0" : 9.75610603E8
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        9.73499435E8,
+                        9.69751227E8,
+                        9.75610603E8
+                    ]
+                ]
+            },
+            "uploadNs" : {
+                "score" : 556363.0,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    556363.0,
+                    556363.0
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 166860.0,
+                    "50.0" : 182217.0,
+                    "90.0" : 207286.0,
+                    "95.0" : 207286.0,
+                    "99.0" : 207286.0,
+                    "99.9" : 207286.0,
+                    "99.99" : 207286.0,
+                    "99.999" : 207286.0,
+                    "99.9999" : 207286.0,
+                    "100.0" : 207286.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        207286.0,
+                        182217.0,
+                        166860.0
+                    ]
+                ]
+            }
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.openclHeavy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "1000000"
+        },
+        "primaryMetric" : {
+            "score" : 364.6632963438401,
+            "scoreError" : 33.873868248158054,
+            "scoreConfidence" : [
+                330.78942809568207,
+                398.53716459199813
+            ],
+            "scorePercentiles" : {
+                "0.0" : 363.31089627755694,
+                "50.0" : 363.89875081847947,
+                "90.0" : 366.78024193548384,
+                "95.0" : 366.78024193548384,
+                "99.0" : 366.78024193548384,
+                "99.9" : 366.78024193548384,
+                "99.99" : 366.78024193548384,
+                "99.999" : 366.78024193548384,
+                "99.9999" : 366.78024193548384,
+                "100.0" : 366.78024193548384
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    363.31089627755694,
+                    363.89875081847947,
+                    366.78024193548384
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+            "launchNs" : {
+                "score" : 4.0060122E7,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    4.0060122E7,
+                    4.0060122E7
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 1.2856505E7,
+                    "50.0" : 1.3022952E7,
+                    "90.0" : 1.4180665E7,
+                    "95.0" : 1.4180665E7,
+                    "99.0" : 1.4180665E7,
+                    "99.9" : 1.4180665E7,
+                    "99.99" : 1.4180665E7,
+                    "99.999" : 1.4180665E7,
+                    "99.9999" : 1.4180665E7,
+                    "100.0" : 1.4180665E7
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        1.4180665E7,
+                        1.3022952E7,
+                        1.2856505E7
+                    ]
+                ]
+            },
+            "ops" : {
+                "score" : 8244.0,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    8244.0,
+                    8244.0
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 2728.0,
+                    "50.0" : 2749.0,
+                    "90.0" : 2767.0,
+                    "95.0" : 2767.0,
+                    "99.0" : 2767.0,
+                    "99.9" : 2767.0,
+                    "99.99" : 2767.0,
+                    "99.999" : 2767.0,
+                    "99.9999" : 2767.0,
+                    "100.0" : 2767.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        2767.0,
+                        2749.0,
+                        2728.0
+                    ]
+                ]
+            },
+            "readbackNs" : {
+                "score" : 2.963239678E9,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    2.963239678E9,
+                    2.963239678E9
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 9.86610591E8,
+                    "50.0" : 9.87009258E8,
+                    "90.0" : 9.89619829E8,
+                    "95.0" : 9.89619829E8,
+                    "99.0" : 9.89619829E8,
+                    "99.9" : 9.89619829E8,
+                    "99.99" : 9.89619829E8,
+                    "99.999" : 9.89619829E8,
+                    "99.9999" : 9.89619829E8,
+                    "100.0" : 9.89619829E8
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        9.89619829E8,
+                        9.86610591E8,
+                        9.87009258E8
+                    ]
+                ]
+            },
+            "uploadNs" : {
+                "score" : 944502.0,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    944502.0,
+                    944502.0
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 72098.0,
+                    "50.0" : 79245.0,
+                    "90.0" : 793159.0,
+                    "95.0" : 793159.0,
+                    "99.0" : 793159.0,
+                    "99.9" : 793159.0,
+                    "99.99" : 793159.0,
+                    "99.999" : 793159.0,
+                    "99.9999" : 793159.0,
+                    "100.0" : 793159.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        793159.0,
+                        79245.0,
+                        72098.0
+                    ]
+                ]
+            }
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.openclHeavy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "10000000"
+        },
+        "primaryMetric" : {
+            "score" : 2020.0634228048732,
+            "scoreError" : 326.5738040423546,
+            "scoreConfidence" : [
+                1693.4896187625186,
+                2346.637226847228
+            ],
+            "scorePercentiles" : {
+                "0.0" : 2000.2181908548707,
+                "50.0" : 2024.9803427419354,
+                "90.0" : 2034.9917348178137,
+                "95.0" : 2034.9917348178137,
+                "99.0" : 2034.9917348178137,
+                "99.9" : 2034.9917348178137,
+                "99.99" : 2034.9917348178137,
+                "99.999" : 2034.9917348178137,
+                "99.9999" : 2034.9917348178137,
+                "100.0" : 2034.9917348178137
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    2024.9803427419354,
+                    2034.9917348178137,
+                    2000.2181908548707
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+            "launchNs" : {
+                "score" : 1.2992403E7,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    1.2992403E7,
+                    1.2992403E7
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 4181710.0,
+                    "50.0" : 4361333.0,
+                    "90.0" : 4449360.0,
+                    "95.0" : 4449360.0,
+                    "99.0" : 4449360.0,
+                    "99.9" : 4449360.0,
+                    "99.99" : 4449360.0,
+                    "99.999" : 4449360.0,
+                    "99.9999" : 4449360.0,
+                    "100.0" : 4449360.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        4181710.0,
+                        4361333.0,
+                        4449360.0
+                    ]
+                ]
+            },
+            "ops" : {
+                "score" : 1493.0,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    1493.0,
+                    1493.0
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 494.0,
+                    "50.0" : 496.0,
+                    "90.0" : 503.0,
+                    "95.0" : 503.0,
+                    "99.0" : 503.0,
+                    "99.9" : 503.0,
+                    "99.99" : 503.0,
+                    "99.999" : 503.0,
+                    "99.9999" : 503.0,
+                    "100.0" : 503.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        496.0,
+                        494.0,
+                        503.0
+                    ]
+                ]
+            },
+            "readbackNs" : {
+                "score" : 3.000273741E9,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    3.000273741E9,
+                    3.000273741E9
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 9.99398296E8,
+                    "50.0" : 1.000025912E9,
+                    "90.0" : 1.000849533E9,
+                    "95.0" : 1.000849533E9,
+                    "99.0" : 1.000849533E9,
+                    "99.9" : 1.000849533E9,
+                    "99.99" : 1.000849533E9,
+                    "99.999" : 1.000849533E9,
+                    "99.9999" : 1.000849533E9,
+                    "100.0" : 1.000849533E9
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        9.99398296E8,
+                        1.000025912E9,
+                        1.000849533E9
+                    ]
+                ]
+            },
+            "uploadNs" : {
+                "score" : 1723020.0,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    1723020.0,
+                    1723020.0
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 561090.0,
+                    "50.0" : 561674.0,
+                    "90.0" : 600256.0,
+                    "95.0" : 600256.0,
+                    "99.0" : 600256.0,
+                    "99.9" : 600256.0,
+                    "99.99" : 600256.0,
+                    "99.999" : 600256.0,
+                    "99.9999" : 600256.0,
+                    "100.0" : 600256.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        561090.0,
+                        561674.0,
+                        600256.0
+                    ]
+                ]
+            }
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.openclVeryHeavy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "10000"
+        },
+        "primaryMetric" : {
+            "score" : 170.57374574751387,
+            "scoreError" : 84.13734466949848,
+            "scoreConfidence" : [
+                86.4364010780154,
+                254.71109041701234
+            ],
+            "scorePercentiles" : {
+                "0.0" : 166.40455881378395,
+                "50.0" : 169.78909070945946,
+                "90.0" : 175.52758771929825,
+                "95.0" : 175.52758771929825,
+                "99.0" : 175.52758771929825,
+                "99.9" : 175.52758771929825,
+                "99.99" : 175.52758771929825,
+                "99.999" : 175.52758771929825,
+                "99.9999" : 175.52758771929825,
+                "100.0" : 175.52758771929825
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    175.52758771929825,
+                    169.78909070945946,
+                    166.40455881378395
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+            "launchNs" : {
+                "score" : 8.0780551E7,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    8.0780551E7,
+                    8.0780551E7
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 2.5372482E7,
+                    "50.0" : 2.7599291E7,
+                    "90.0" : 2.7808778E7,
+                    "95.0" : 2.7808778E7,
+                    "99.0" : 2.7808778E7,
+                    "99.9" : 2.7808778E7,
+                    "99.99" : 2.7808778E7,
+                    "99.999" : 2.7808778E7,
+                    "99.9999" : 2.7808778E7,
+                    "100.0" : 2.7808778E7
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        2.5372482E7,
+                        2.7599291E7,
+                        2.7808778E7
+                    ]
+                ]
+            },
+            "ops" : {
+                "score" : 17656.0,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    17656.0,
+                    17656.0
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 5700.0,
+                    "50.0" : 5920.0,
+                    "90.0" : 6036.0,
+                    "95.0" : 6036.0,
+                    "99.0" : 6036.0,
+                    "99.9" : 6036.0,
+                    "99.99" : 6036.0,
+                    "99.999" : 6036.0,
+                    "99.9999" : 6036.0,
+                    "100.0" : 6036.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        5700.0,
+                        5920.0,
+                        6036.0
+                    ]
+                ]
+            },
+            "readbackNs" : {
+                "score" : 2.92473033E9,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    2.92473033E9,
+                    2.92473033E9
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 9.73657845E8,
+                    "50.0" : 9.75061695E8,
+                    "90.0" : 9.7601079E8,
+                    "95.0" : 9.7601079E8,
+                    "99.0" : 9.7601079E8,
+                    "99.9" : 9.7601079E8,
+                    "99.99" : 9.7601079E8,
+                    "99.999" : 9.7601079E8,
+                    "99.9999" : 9.7601079E8,
+                    "100.0" : 9.7601079E8
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        9.73657845E8,
+                        9.7601079E8,
+                        9.75061695E8
+                    ]
+                ]
+            },
+            "uploadNs" : {
+                "score" : 477005.0,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    477005.0,
+                    477005.0
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 154663.0,
+                    "50.0" : 159764.0,
+                    "90.0" : 162578.0,
+                    "95.0" : 162578.0,
+                    "99.0" : 162578.0,
+                    "99.9" : 162578.0,
+                    "99.99" : 162578.0,
+                    "99.999" : 162578.0,
+                    "99.9999" : 162578.0,
+                    "100.0" : 162578.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        154663.0,
+                        159764.0,
+                        162578.0
+                    ]
+                ]
+            }
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.openclVeryHeavy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "1000000"
+        },
+        "primaryMetric" : {
+            "score" : 364.27796505764496,
+            "scoreError" : 58.20296325751459,
+            "scoreConfidence" : [
+                306.0750018001304,
+                422.48092831515953
+            ],
+            "scorePercentiles" : {
+                "0.0" : 361.30312324324325,
+                "50.0" : 363.8836961887477,
+                "90.0" : 367.647075740944,
+                "95.0" : 367.647075740944,
+                "99.0" : 367.647075740944,
+                "99.9" : 367.647075740944,
+                "99.99" : 367.647075740944,
+                "99.999" : 367.647075740944,
+                "99.9999" : 367.647075740944,
+                "100.0" : 367.647075740944
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    367.647075740944,
+                    361.30312324324325,
+                    363.8836961887477
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+            "launchNs" : {
+                "score" : 3.8272749E7,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    3.8272749E7,
+                    3.8272749E7
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 1.2182637E7,
+                    "50.0" : 1.3005689E7,
+                    "90.0" : 1.3084423E7,
+                    "95.0" : 1.3084423E7,
+                    "99.0" : 1.3084423E7,
+                    "99.9" : 1.3084423E7,
+                    "99.99" : 1.3084423E7,
+                    "99.999" : 1.3084423E7,
+                    "99.9999" : 1.3084423E7,
+                    "100.0" : 1.3084423E7
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        1.3084423E7,
+                        1.3005689E7,
+                        1.2182637E7
+                    ]
+                ]
+            },
+            "ops" : {
+                "score" : 8263.0,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    8263.0,
+                    8263.0
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 2733.0,
+                    "50.0" : 2755.0,
+                    "90.0" : 2775.0,
+                    "95.0" : 2775.0,
+                    "99.0" : 2775.0,
+                    "99.9" : 2775.0,
+                    "99.99" : 2775.0,
+                    "99.999" : 2775.0,
+                    "99.9999" : 2775.0,
+                    "100.0" : 2775.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        2733.0,
+                        2775.0,
+                        2755.0
+                    ]
+                ]
+            },
+            "readbackNs" : {
+                "score" : 2.968882229E9,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    2.968882229E9,
+                    2.968882229E9
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 9.88897126E8,
+                    "50.0" : 9.896332E8,
+                    "90.0" : 9.90351903E8,
+                    "95.0" : 9.90351903E8,
+                    "99.0" : 9.90351903E8,
+                    "99.9" : 9.90351903E8,
+                    "99.99" : 9.90351903E8,
+                    "99.999" : 9.90351903E8,
+                    "99.9999" : 9.90351903E8,
+                    "100.0" : 9.90351903E8
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        9.90351903E8,
+                        9.88897126E8,
+                        9.896332E8
+                    ]
+                ]
+            },
+            "uploadNs" : {
+                "score" : 814884.0,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    814884.0,
+                    814884.0
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 69226.0,
+                    "50.0" : 72431.0,
+                    "90.0" : 673227.0,
+                    "95.0" : 673227.0,
+                    "99.0" : 673227.0,
+                    "99.9" : 673227.0,
+                    "99.99" : 673227.0,
+                    "99.999" : 673227.0,
+                    "99.9999" : 673227.0,
+                    "100.0" : 673227.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        673227.0,
+                        72431.0,
+                        69226.0
+                    ]
+                ]
+            }
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.openclVeryHeavy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "10000000"
+        },
+        "primaryMetric" : {
+            "score" : 2012.4652284835431,
+            "scoreError" : 397.28297139511375,
+            "scoreConfidence" : [
+                1615.1822570884294,
+                2409.748199878657
+            ],
+            "scorePercentiles" : {
+                "0.0" : 1988.370800395257,
+                "50.0" : 2018.282965863454,
+                "90.0" : 2030.7419191919191,
+                "95.0" : 2030.7419191919191,
+                "99.0" : 2030.7419191919191,
+                "99.9" : 2030.7419191919191,
+                "99.99" : 2030.7419191919191,
+                "99.999" : 2030.7419191919191,
+                "99.9999" : 2030.7419191919191,
+                "100.0" : 2030.7419191919191
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    1988.370800395257,
+                    2018.282965863454,
+                    2030.7419191919191
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+            "launchNs" : {
+                "score" : 1.3723489E7,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    1.3723489E7,
+                    1.3723489E7
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 4447055.0,
+                    "50.0" : 4505302.0,
+                    "90.0" : 4771132.0,
+                    "95.0" : 4771132.0,
+                    "99.0" : 4771132.0,
+                    "99.9" : 4771132.0,
+                    "99.99" : 4771132.0,
+                    "99.999" : 4771132.0,
+                    "99.9999" : 4771132.0,
+                    "100.0" : 4771132.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        4505302.0,
+                        4447055.0,
+                        4771132.0
+                    ]
+                ]
+            },
+            "ops" : {
+                "score" : 1499.0,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    1499.0,
+                    1499.0
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 495.0,
+                    "50.0" : 498.0,
+                    "90.0" : 506.0,
+                    "95.0" : 506.0,
+                    "99.0" : 506.0,
+                    "99.9" : 506.0,
+                    "99.99" : 506.0,
+                    "99.999" : 506.0,
+                    "99.9999" : 506.0,
+                    "100.0" : 506.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        506.0,
+                        498.0,
+                        495.0
+                    ]
+                ]
+            },
+            "readbackNs" : {
+                "score" : 2.999908139E9,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    2.999908139E9,
+                    2.999908139E9
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 9.99448621E8,
+                    "50.0" : 9.99786326E8,
+                    "90.0" : 1.000673192E9,
+                    "95.0" : 1.000673192E9,
+                    "99.0" : 1.000673192E9,
+                    "99.9" : 1.000673192E9,
+                    "99.99" : 1.000673192E9,
+                    "99.999" : 1.000673192E9,
+                    "99.9999" : 1.000673192E9,
+                    "100.0" : 1.000673192E9
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        1.000673192E9,
+                        9.99786326E8,
+                        9.99448621E8
+                    ]
+                ]
+            },
+            "uploadNs" : {
+                "score" : 1947243.0,
+                "scoreError" : "NaN",
+                "scoreConfidence" : [
+                    1947243.0,
+                    1947243.0
+                ],
+                "scorePercentiles" : {
+                    "0.0" : 562331.0,
+                    "50.0" : 634748.0,
+                    "90.0" : 750164.0,
+                    "95.0" : 750164.0,
+                    "99.0" : 750164.0,
+                    "99.9" : 750164.0,
+                    "99.99" : 750164.0,
+                    "99.999" : 750164.0,
+                    "99.9999" : 750164.0,
+                    "100.0" : 750164.0
+                },
+                "scoreUnit" : "#",
+                "rawData" : [
+                    [
+                        634748.0,
+                        562331.0,
+                        750164.0
+                    ]
+                ]
+            }
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.plainChain",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "10000"
+        },
+        "primaryMetric" : {
+            "score" : 13.136681353767159,
+            "scoreError" : 0.3255253001549576,
+            "scoreConfidence" : [
+                12.811156053612201,
+                13.462206653922117
+            ],
+            "scorePercentiles" : {
+                "0.0" : 13.124621849617384,
+                "50.0" : 13.128243766082788,
+                "90.0" : 13.157178445601303,
+                "95.0" : 13.157178445601303,
+                "99.0" : 13.157178445601303,
+                "99.9" : 13.157178445601303,
+                "99.99" : 13.157178445601303,
+                "99.999" : 13.157178445601303,
+                "99.9999" : 13.157178445601303,
+                "100.0" : 13.157178445601303
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    13.157178445601303,
+                    13.128243766082788,
+                    13.124621849617384
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.plainChain",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "1000000"
+        },
+        "primaryMetric" : {
+            "score" : 2182.7499228504507,
+            "scoreError" : 58.775102029423216,
+            "scoreConfidence" : [
+                2123.9748208210276,
+                2241.525024879874
+            ],
+            "scorePercentiles" : {
+                "0.0" : 2179.5760130151843,
+                "50.0" : 2182.656453362256,
+                "90.0" : 2186.017302173913,
+                "95.0" : 2186.017302173913,
+                "99.0" : 2186.017302173913,
+                "99.9" : 2186.017302173913,
+                "99.99" : 2186.017302173913,
+                "99.999" : 2186.017302173913,
+                "99.9999" : 2186.017302173913,
+                "100.0" : 2186.017302173913
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    2186.017302173913,
+                    2179.5760130151843,
+                    2182.656453362256
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.plainChain",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "10000000"
+        },
+        "primaryMetric" : {
+            "score" : 21598.838361702128,
+            "scoreError" : 806.8396546538529,
+            "scoreConfidence" : [
+                20791.998707048275,
+                22405.67801635598
+            ],
+            "scorePercentiles" : {
+                "0.0" : 21569.867021276597,
+                "50.0" : 21576.90425531915,
+                "90.0" : 21649.743808510637,
+                "95.0" : 21649.743808510637,
+                "99.0" : 21649.743808510637,
+                "99.9" : 21649.743808510637,
+                "99.99" : 21649.743808510637,
+                "99.999" : 21649.743808510637,
+                "99.9999" : 21649.743808510637,
+                "100.0" : 21649.743808510637
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    21576.90425531915,
+                    21569.867021276597,
+                    21649.743808510637
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.plainHeavy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "10000"
+        },
+        "primaryMetric" : {
+            "score" : 119.5554322640337,
+            "scoreError" : 24.344165955783875,
+            "scoreConfidence" : [
+                95.21126630824982,
+                143.89959821981756
+            ],
+            "scorePercentiles" : {
+                "0.0" : 118.77115089211864,
+                "50.0" : 118.79898132166923,
+                "90.0" : 121.09616457831325,
+                "95.0" : 121.09616457831325,
+                "99.0" : 121.09616457831325,
+                "99.9" : 121.09616457831325,
+                "99.99" : 121.09616457831325,
+                "99.999" : 121.09616457831325,
+                "99.9999" : 121.09616457831325,
+                "100.0" : 121.09616457831325
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    118.77115089211864,
+                    121.09616457831325,
+                    118.79898132166923
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.plainHeavy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "1000000"
+        },
+        "primaryMetric" : {
+            "score" : 12766.71782700422,
+            "scoreError" : 430.42976361720554,
+            "scoreConfidence" : [
+                12336.288063387015,
+                13197.147590621425
+            ],
+            "scorePercentiles" : {
+                "0.0" : 12739.624481012659,
+                "50.0" : 12777.79324050633,
+                "90.0" : 12782.735759493671,
+                "95.0" : 12782.735759493671,
+                "99.0" : 12782.735759493671,
+                "99.9" : 12782.735759493671,
+                "99.99" : 12782.735759493671,
+                "99.999" : 12782.735759493671,
+                "99.9999" : 12782.735759493671,
+                "100.0" : 12782.735759493671
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    12782.735759493671,
+                    12777.79324050633,
+                    12739.624481012659
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.plainHeavy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "10000000"
+        },
+        "primaryMetric" : {
+            "score" : 400592.47222222225,
+            "scoreError" : 12861.306895167369,
+            "scoreConfidence" : [
+                387731.16532705486,
+                413453.77911738964
+            ],
+            "scorePercentiles" : {
+                "0.0" : 399803.9166666667,
+                "50.0" : 400811.764,
+                "90.0" : 401161.736,
+                "95.0" : 401161.736,
+                "99.0" : 401161.736,
+                "99.9" : 401161.736,
+                "99.99" : 401161.736,
+                "99.999" : 401161.736,
+                "99.9999" : 401161.736,
+                "100.0" : 401161.736
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    399803.9166666667,
+                    400811.764,
+                    401161.736
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.plainVeryHeavy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "10000"
+        },
+        "primaryMetric" : {
+            "score" : 1036.7528567400811,
+            "scoreError" : 44.90367218884859,
+            "scoreConfidence" : [
+                991.8491845512326,
+                1081.6565289289297
+            ],
+            "scorePercentiles" : {
+                "0.0" : 1034.3906350515465,
+                "50.0" : 1036.5653783505154,
+                "90.0" : 1039.3025568181818,
+                "95.0" : 1039.3025568181818,
+                "99.0" : 1039.3025568181818,
+                "99.9" : 1039.3025568181818,
+                "99.99" : 1039.3025568181818,
+                "99.999" : 1039.3025568181818,
+                "99.9999" : 1039.3025568181818,
+                "100.0" : 1039.3025568181818
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    1036.5653783505154,
+                    1039.3025568181818,
+                    1034.3906350515465
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.plainVeryHeavy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "1000000"
+        },
+        "primaryMetric" : {
+            "score" : 105429.39863333333,
+            "scoreError" : 3870.169535109292,
+            "scoreConfidence" : [
+                101559.22909822404,
+                109299.56816844262
+            ],
+            "scorePercentiles" : {
+                "0.0" : 105184.7542,
+                "50.0" : 105541.0459,
+                "90.0" : 105562.3958,
+                "95.0" : 105562.3958,
+                "99.0" : 105562.3958,
+                "99.9" : 105562.3958,
+                "99.99" : 105562.3958,
+                "99.999" : 105562.3958,
+                "99.9999" : 105562.3958,
+                "100.0" : 105562.3958
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    105562.3958,
+                    105184.7542,
+                    105541.0459
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.plainVeryHeavy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "10000000"
+        },
+        "primaryMetric" : {
+            "score" : 1383969.1526666668,
+            "scoreError" : 49237.91498136289,
+            "scoreConfidence" : [
+                1334731.237685304,
+                1433207.0676480297
+            ],
+            "scorePercentiles" : {
+                "0.0" : 1381286.625,
+                "50.0" : 1383936.708,
+                "90.0" : 1386684.125,
+                "95.0" : 1386684.125,
+                "99.0" : 1386684.125,
+                "99.9" : 1386684.125,
+                "99.99" : 1386684.125,
+                "99.999" : 1386684.125,
+                "99.9999" : 1386684.125,
+                "100.0" : 1386684.125
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    1381286.625,
+                    1386684.125,
+                    1383936.708
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.spireChain",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "10000"
+        },
+        "primaryMetric" : {
+            "score" : 92.3128439784437,
+            "scoreError" : 506.85375783320825,
+            "scoreConfidence" : [
+                -414.54091385476454,
+                599.166601811652
+            ],
+            "scorePercentiles" : {
+                "0.0" : 73.15145891812865,
+                "50.0" : 79.611463354531,
+                "90.0" : 124.17560966267145,
+                "95.0" : 124.17560966267145,
+                "99.0" : 124.17560966267145,
+                "99.9" : 124.17560966267145,
+                "99.99" : 124.17560966267145,
+                "99.999" : 124.17560966267145,
+                "99.9999" : 124.17560966267145,
+                "100.0" : 124.17560966267145
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    124.17560966267145,
+                    79.611463354531,
+                    73.15145891812865
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.spireChain",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "1000000"
+        },
+        "primaryMetric" : {
+            "score" : 7659.74862980019,
+            "scoreError" : 8914.158271214183,
+            "scoreConfidence" : [
+                -1254.4096414139922,
+                16573.906901014372
+            ],
+            "scorePercentiles" : {
+                "0.0" : 7366.602795620438,
+                "50.0" : 7388.836397058823,
+                "90.0" : 8223.80669672131,
+                "95.0" : 8223.80669672131,
+                "99.0" : 8223.80669672131,
+                "99.9" : 8223.80669672131,
+                "99.99" : 8223.80669672131,
+                "99.999" : 8223.80669672131,
+                "99.9999" : 8223.80669672131,
+                "100.0" : 8223.80669672131
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    8223.80669672131,
+                    7388.836397058823,
+                    7366.602795620438
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.spireChain",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "10000000"
+        },
+        "primaryMetric" : {
+            "score" : 75960.12675457876,
+            "scoreError" : 77758.31633650315,
+            "scoreConfidence" : [
+                -1798.1895819243946,
+                153718.44309108192
+            ],
+            "scorePercentiles" : {
+                "0.0" : 73365.08928571429,
+                "50.0" : 73636.09228571429,
+                "90.0" : 80879.19869230769,
+                "95.0" : 80879.19869230769,
+                "99.0" : 80879.19869230769,
+                "99.9" : 80879.19869230769,
+                "99.99" : 80879.19869230769,
+                "99.999" : 80879.19869230769,
+                "99.9999" : 80879.19869230769,
+                "100.0" : 80879.19869230769
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    80879.19869230769,
+                    73636.09228571429,
+                    73365.08928571429
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.spireHeavy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "10000"
+        },
+        "primaryMetric" : {
+            "score" : 119.54753854608657,
+            "scoreError" : 6.366041454700345,
+            "scoreConfidence" : [
+                113.18149709138622,
+                125.91358000078692
+            ],
+            "scorePercentiles" : {
+                "0.0" : 119.28866009969143,
+                "50.0" : 119.40958568536382,
+                "90.0" : 119.94436985320444,
+                "95.0" : 119.94436985320444,
+                "99.0" : 119.94436985320444,
+                "99.9" : 119.94436985320444,
+                "99.99" : 119.94436985320444,
+                "99.999" : 119.94436985320444,
+                "99.9999" : 119.94436985320444,
+                "100.0" : 119.94436985320444
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    119.28866009969143,
+                    119.94436985320444,
+                    119.40958568536382
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.spireHeavy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "1000000"
+        },
+        "primaryMetric" : {
+            "score" : 12778.837721518988,
+            "scoreError" : 590.4075630824351,
+            "scoreConfidence" : [
+                12188.430158436553,
+                13369.245284601424
+            ],
+            "scorePercentiles" : {
+                "0.0" : 12748.275835443037,
+                "50.0" : 12775.496303797468,
+                "90.0" : 12812.741025316456,
+                "95.0" : 12812.741025316456,
+                "99.0" : 12812.741025316456,
+                "99.9" : 12812.741025316456,
+                "99.99" : 12812.741025316456,
+                "99.999" : 12812.741025316456,
+                "99.9999" : 12812.741025316456,
+                "100.0" : 12812.741025316456
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    12775.496303797468,
+                    12812.741025316456,
+                    12748.275835443037
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.spireHeavy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "10000000"
+        },
+        "primaryMetric" : {
+            "score" : 402176.7962222222,
+            "scoreError" : 13650.843181840462,
+            "scoreConfidence" : [
+                388525.9530403818,
+                415827.63940406265
+            ],
+            "scorePercentiles" : {
+                "0.0" : 401375.6803333333,
+                "50.0" : 402297.111,
+                "90.0" : 402857.59733333334,
+                "95.0" : 402857.59733333334,
+                "99.0" : 402857.59733333334,
+                "99.9" : 402857.59733333334,
+                "99.99" : 402857.59733333334,
+                "99.999" : 402857.59733333334,
+                "99.9999" : 402857.59733333334,
+                "100.0" : 402857.59733333334
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    402857.59733333334,
+                    401375.6803333333,
+                    402297.111
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.spireVeryHeavy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "10000"
+        },
+        "primaryMetric" : {
+            "score" : 1044.1590943492017,
+            "scoreError" : 6.496077735523102,
+            "scoreConfidence" : [
+                1037.6630166136786,
+                1050.6551720847249
+            ],
+            "scorePercentiles" : {
+                "0.0" : 1043.822689511942,
+                "50.0" : 1044.1225748440747,
+                "90.0" : 1044.5320186915887,
+                "95.0" : 1044.5320186915887,
+                "99.0" : 1044.5320186915887,
+                "99.9" : 1044.5320186915887,
+                "99.99" : 1044.5320186915887,
+                "99.999" : 1044.5320186915887,
+                "99.9999" : 1044.5320186915887,
+                "100.0" : 1044.5320186915887
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    1043.822689511942,
+                    1044.1225748440747,
+                    1044.5320186915887
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.spireVeryHeavy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "1000000"
+        },
+        "primaryMetric" : {
+            "score" : 105695.75976666667,
+            "scoreError" : 2846.4800007961303,
+            "scoreConfidence" : [
+                102849.27976587054,
+                108542.2397674628
+            ],
+            "scorePercentiles" : {
+                "0.0" : 105599.9959,
+                "50.0" : 105611.4834,
+                "90.0" : 105875.8,
+                "95.0" : 105875.8,
+                "99.0" : 105875.8,
+                "99.9" : 105875.8,
+                "99.99" : 105875.8,
+                "99.999" : 105875.8,
+                "99.9999" : 105875.8,
+                "100.0" : 105875.8
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    105599.9959,
+                    105875.8,
+                    105611.4834
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    },
+    {
+        "jmhVersion" : "1.37",
+        "benchmark" : "io.github.mercurievv.spireopencl.bench.GeneratorBench.spireVeryHeavy",
+        "mode" : "avgt",
+        "threads" : 1,
+        "forks" : 1,
+        "jvm" : "/Users/viktorskalinins/Library/Caches/Coursier/arc/https/cdn.azul.com/zulu/bin/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64.tar.gz/zulu21.48.15-ca-jdk21.0.10-macosx_aarch64/zulu-21.jdk/Contents/Home/bin/java",
+        "jvmArgs" : [
+            "-Xms8g",
+            "-Xmx8g",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxDirectMemorySize=2g"
+        ],
+        "jdkVersion" : "21.0.10",
+        "vmName" : "OpenJDK 64-Bit Server VM",
+        "vmVersion" : "21.0.10+7-LTS",
+        "warmupIterations" : 2,
+        "warmupTime" : "1 s",
+        "warmupBatchSize" : 1,
+        "measurementIterations" : 3,
+        "measurementTime" : "1 s",
+        "measurementBatchSize" : 1,
+        "params" : {
+            "size" : "10000000"
+        },
+        "primaryMetric" : {
+            "score" : 1392327.8053333333,
+            "scoreError" : 26424.910761893843,
+            "scoreConfidence" : [
+                1365902.8945714394,
+                1418752.7160952273
+            ],
+            "scorePercentiles" : {
+                "0.0" : 1391003.5,
+                "50.0" : 1392105.291,
+                "90.0" : 1393874.625,
+                "95.0" : 1393874.625,
+                "99.0" : 1393874.625,
+                "99.9" : 1393874.625,
+                "99.99" : 1393874.625,
+                "99.999" : 1393874.625,
+                "99.9999" : 1393874.625,
+                "100.0" : 1393874.625
+            },
+            "scoreUnit" : "us/op",
+            "rawData" : [
+                [
+                    1392105.291,
+                    1391003.5,
+                    1393874.625
+                ]
+            ]
+        },
+        "secondaryMetrics" : {
+        }
+    }
+]
+
+

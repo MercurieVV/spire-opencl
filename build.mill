@@ -286,6 +286,7 @@ object docs extends ScalaModule {
       classPath = runClasspath().map(_.path).toSeq,
       mainArgs = Seq(
         (moduleDir / os.up / "bench" / "results" / "2026-08-15-apple-m3-max.json").toString,
+        (moduleDir / os.up / "bench" / "results" / "2026-08-24-170344.json").toString,
         (dest / "benchmarking.md").toString,
       ),
     )

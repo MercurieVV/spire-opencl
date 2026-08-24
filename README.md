@@ -32,19 +32,6 @@ Check that your machine has a usable OpenCL device:
 ./mill spireOpencl.runMain io.github.mercurievv.spireopencl.opencl.DeviceProbe
 ```
 
-Build docs locally:
-
-```bash
-./mill docs.site
-open out/docs/site.dest/index.html
-```
-
-Run tests:
-
-```bash
-./mill spireOpencl.test
-```
-
 ## Spire Features Used
 
 - `Field`: `+`, `-`, `*`, `/`, `zero`, `one`

@@ -60,6 +60,17 @@ The resident row is the one noisy result in the set — a single-fork run of the
 | Spire on JVM | 80627 ± 5592 | 404414 ± 1557 |
 | Breeze | 100750 ± 1479 | n/a |
 
+## 2026-08-24, Apple M3 Max — arithmetic intensity extension
+
+`GeneratorBench`, `-f 1 -wi 2 -i 3` (1 fork, lower confidence than the run above), `2026-08-24-170344.json`.
+`veryHeavy` = `heavy`'s body composed `Bench.VeryHeavyDepth` (4) times, same traffic as `heavy`.
+
+| size | opencl | plain while loop | vs plain |
+|---|---|---|---|
+| 10^4 | 170.6 us | 1036.8 us | **6.1x faster** |
+| 10^6 | 364.3 us | 105429.4 us | **289.4x faster** |
+| 10^7 | 2012.5 us | 1383969.2 us | **687.7x faster** |
+
 ### Depth sweep at 10^6 — separating compute from transfer
 
 | depth | opencl | plain | Spire |

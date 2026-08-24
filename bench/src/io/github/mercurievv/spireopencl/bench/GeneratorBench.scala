@@ -45,6 +45,16 @@ class GeneratorBench:
     k.heavy.renderBatchIntoUnsafe(in.uniforms, GeneratorBench.OneElement, k.native, hook)
     bh.consume(k.native)
 
+  /** `heavy`'s body composed `Bench.VeryHeavyDepth` times: same traffic as `openclHeavy`, far more arithmetic per element. Isolates arithmetic
+    * intensity as the one variable changing against the `openclHeavy` row above.
+    */
+  @Benchmark
+  def openclVeryHeavy(k: GeneratorKernels, in: Inputs, ph: PhaseCounters, bh: Blackhole): Unit =
+    counters = ph
+    ph.begin(System.nanoTime())
+    k.veryHeavy.renderBatchIntoUnsafe(in.uniforms, GeneratorBench.OneElement, k.native, hook)
+    bh.consume(k.native)
+
   // ---- Spire typeclasses over a primitive array ----
 
   @Benchmark
@@ -55,6 +65,11 @@ class GeneratorBench:
   @Benchmark
   def spireHeavy(in: Inputs, bh: Blackhole): Unit =
     Jvm.spireGeneratorHeavy(in.uniformA, in.out)
+    bh.consume(in.out)
+
+  @Benchmark
+  def spireVeryHeavy(in: Inputs, bh: Blackhole): Unit =
+    Jvm.spireGeneratorVeryHeavy(in.uniformA, Bench.VeryHeavyDepth, in.out)
     bh.consume(in.out)
 
   // ---- Breeze ----
@@ -73,6 +88,11 @@ class GeneratorBench:
   @Benchmark
   def plainHeavy(in: Inputs, bh: Blackhole): Unit =
     Jvm.plainGeneratorHeavy(in.uniformA, in.out)
+    bh.consume(in.out)
+
+  @Benchmark
+  def plainVeryHeavy(in: Inputs, bh: Blackhole): Unit =
+    Jvm.plainGeneratorVeryHeavy(in.uniformA, Bench.VeryHeavyDepth, in.out)
     bh.consume(in.out)
 
 object GeneratorBench:

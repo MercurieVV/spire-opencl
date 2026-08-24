@@ -76,6 +76,24 @@ object AgreementSpec extends SimpleIOSuite:
     }
   }
 
+  test("encoding A, veryHeavy: kernel, spire and the plain loop all agree") {
+    val expected = new Array[Float](n)
+    Jvm.plainGeneratorVeryHeavy(Bench.UniformA, Bench.VeryHeavyDepth, expected)
+
+    val spire = new Array[Float](n)
+    Jvm.spireGeneratorVeryHeavy(Bench.UniformA, Bench.VeryHeavyDepth, spire)
+
+    ClKernel.compile[IO](Formulas.generatorVeryHeavy(Bench.VeryHeavyDepth), n, 1).use { kernel =>
+      IO {
+        val gpu = Data.directFloats(n)
+        kernel.renderBatchIntoUnsafe(Map("a" -> Bench.UniformA), GeneratorBench.OneElement, gpu, (_, _) => ())
+        val got = new Array[Float](n)
+        gpu.duplicate().get(got)
+        agree("spire", expected, spire) and agree("opencl", expected, got)
+      }
+    }
+  }
+
   test("encoding B, a * b + c: kernel, spire, breeze and the plain loop all agree") {
     val a = Data.fill(n, 0x9e3779b9L)
     val b = Data.fill(n, 0x517cc1b7L)

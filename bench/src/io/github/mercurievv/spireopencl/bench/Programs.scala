@@ -37,3 +37,16 @@ object Programs:
 
   /** The elementwise workload of encoding B: three inputs per element, one output. */
   def elementwise[V: Field](a: V, b: V, c: V): V = a * b + c
+
+  /** Compute-bound, `depth` times over: the same `heavy` body — `sin`/`exp`/`sqrt` — fed back into itself instead of run once. Same array traffic as
+    * `heavy` (one input, one output), `depth`x its arithmetic. Exists because `heavy` alone (3 transcendentals) is already compute-bound but still
+    * cheap enough that launch/transfer is a visible fraction of the total; this pushes arithmetic intensity further to show where that fraction goes
+    * to zero.
+    */
+  def veryHeavy[V: {Field, Trig, NRoot}](x: V, a: V, depth: Int): V =
+    var acc = x
+    var k = 0
+    while k < depth do
+      acc = heavy(acc, a)
+      k += 1
+    acc

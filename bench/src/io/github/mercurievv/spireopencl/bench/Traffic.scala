@@ -53,6 +53,7 @@ object Traffic:
   private def chainOps(depth: Int): Int = opCount(Formulas.generatorChain(depth).body)
 
   private lazy val heavyOps = opCount(Formulas.generatorHeavy.body)
+  private def veryHeavyOps(depth: Int): Int = opCount(Formulas.generatorVeryHeavy(depth).body)
   private lazy val elementwiseOps = opCount(Formulas.elementwise.body)
   private lazy val elemHeavyOps = opCount(Formulas.elementwiseHeavy.body)
 
@@ -68,6 +69,9 @@ object Traffic:
       case "GeneratorBench.openclHeavy"                              => Some(Profile(0, Float4, 0, Float4, heavyOps))
       case "GeneratorBench.spireChain" | "GeneratorBench.plainChain" => Some(Profile(0, Float4, 0, 0, chainOps(depth)))
       case "GeneratorBench.spireHeavy" | "GeneratorBench.plainHeavy" => Some(Profile(0, Float4, 0, 0, heavyOps))
+      case "GeneratorBench.openclVeryHeavy"                          => Some(Profile(0, Float4, 0, Float4, veryHeavyOps(Bench.VeryHeavyDepth)))
+      case "GeneratorBench.spireVeryHeavy" | "GeneratorBench.plainVeryHeavy" =>
+        Some(Profile(0, Float4, 0, 0, veryHeavyOps(Bench.VeryHeavyDepth)))
       /* Breeze's `tabulate` has no in-place form, so the vector it returns is freshly allocated every call.
        * Counted as a write because that is what it costs, and flagged in the report rather than hidden. */
       case "GeneratorBench.breezeChain" => Some(Profile(0, Float4, 0, 0, chainOps(depth)))

@@ -24,6 +24,14 @@ object Bench:
     */
   final val Depth = 8
 
+  /** Composition depth for `veryHeavy`: `heavy`'s body run this many times over. Deep enough that arithmetic intensity is unambiguously the dominant
+    * cost, unlike plain `heavy` where launch/transfer is still a visible fraction of the total. Kept modest (4x `heavy`'s transcendental count)
+    * because the OpenCL driver's own compiler — not this library — has been observed to hang for many minutes optimizing far deeper compositions of
+    * nested transcendentals; that is a property of the platform JIT, not of the codegen here, and is not worth triggering just to sweep depth
+    * further.
+    */
+  final val VeryHeavyDepth = 4
+
   final val UniformA = 1.0000001f
   final val UniformB = 0.5f
 
@@ -75,6 +83,7 @@ abstract class Compiled:
 
   private var releasePlain: IO[Unit] = IO.unit
   private var releaseHeavy: IO[Unit] = IO.unit
+  private var releaseVeryHeavy: IO[Unit] = IO.unit
 
   protected def open(
     plainF: Formula,
@@ -92,6 +101,18 @@ abstract class Compiled:
     releaseHeavy = rh
     native       = Data.directFloats(outputFloats)
 
+  /** A third kernel, compiled only by the states that benchmark it, so `Compiled`'s other users don't pay for a kernel they never launch. */
+  var veryHeavy: Kernel[IO] = null
+
+  protected def openVeryHeavy(veryHeavyF: Formula, size: Int, maxBatch: Int, hostVisibleOutput: Boolean = false): Unit =
+    val (vh, rvh) = ClKernel.compile[IO](veryHeavyF, size, maxBatch, hostVisibleOutput).allocated.unsafeRunSync()
+    veryHeavy        = vh
+    releaseVeryHeavy = rvh
+
+  protected def closeVeryHeavy(): Unit =
+    releaseVeryHeavy.unsafeRunSync()
+    veryHeavy = null
+
   protected def close(): Unit =
     releaseHeavy.unsafeRunSync()
     releasePlain.unsafeRunSync()
@@ -107,16 +128,20 @@ class GeneratorKernels extends Compiled:
   var size: Int = 0
 
   @Setup(Level.Trial)
-  def setup(): Unit = open(
-    Formulas.generatorChain(Bench.Depth),
-    Formulas.generatorHeavy,
-    size,
-    maxBatch     = 1,
-    outputFloats = size,
-  )
+  def setup(): Unit =
+    open(
+      Formulas.generatorChain(Bench.Depth),
+      Formulas.generatorHeavy,
+      size,
+      maxBatch     = 1,
+      outputFloats = size,
+    )
+    openVeryHeavy(Formulas.generatorVeryHeavy(Bench.VeryHeavyDepth), size, maxBatch = 1)
 
   @TearDown(Level.Trial)
-  def teardown(): Unit = close()
+  def teardown(): Unit =
+    closeVeryHeavy()
+    close()
 
 /** Encoding **C** — the arrays resident on the device, read at the work-item index, `size = N` on dimension 0.
   *

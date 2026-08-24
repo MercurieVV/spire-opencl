@@ -45,6 +45,25 @@ object Jvm:
       out(i) = math.sqrt((e * e + s * s).toDouble).toFloat
       i += 1
 
+  def spireGeneratorVeryHeavy(a: Float, depth: Int, out: Array[Float]): Unit =
+    var i = 0
+    while i < out.length do
+      out(i) = Programs.veryHeavy[Float](i.toFloat, a, depth)
+      i += 1
+
+  def plainGeneratorVeryHeavy(a: Float, depth: Int, out: Array[Float]): Unit =
+    var i = 0
+    while i < out.length do
+      var acc = i.toFloat
+      var k = 0
+      while k < depth do
+        val s = math.sin(acc * a).toFloat
+        val e = math.exp(s).toFloat
+        acc = math.sqrt((e * e + s * s).toDouble).toFloat
+        k += 1
+      out(i) = acc
+      i += 1
+
   /** Breeze's generator row. `DenseVector.tabulate` is the idiomatic way to build a vector from its index, and it is what a Breeze user would write;
     * there is no fused-multiply-add vector primitive to reach for, so the chain stays scalar inside the tabulate.
     *

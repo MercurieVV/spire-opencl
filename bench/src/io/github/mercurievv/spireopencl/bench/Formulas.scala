@@ -23,6 +23,12 @@ object Formulas:
   def generatorHeavy: Formula =
     Reify(uniforms = List("a"), params = Nil)((uniform, _) => Programs.heavy(Expr.Index, uniform("a")))
 
+  /** `heavy`'s body composed `depth` times: same traffic as `generatorHeavy` (nothing uploaded but two scalars, one float back), far more arithmetic
+    * per element. The row that isolates arithmetic intensity from every other variable this suite controls for.
+    */
+  def generatorVeryHeavy(depth: Int): Formula =
+    Reify(uniforms = List("a"), params = Nil)((uniform, _) => Programs.veryHeavy(Expr.Index, uniform("a"), depth))
+
   /** Encoding **B**, the array-elementwise fit: `size = 1`, and the array runs along the *batch* dimension, one element per array slot, with the
     * three inputs arriving as per-element parameters.
     *
