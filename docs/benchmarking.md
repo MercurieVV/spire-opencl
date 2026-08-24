@@ -5,60 +5,88 @@ loop. These numbers describe one machine, not a portable promise.
 
 ## When This Actually Pays Off
 
-OpenCL wins big only when three things hold together: **large arrays** (below ~10^6 elements, the
-~180 us launch floor dominates and the JVM wins outright), **arithmetic-heavy formulas** (cheap ones
-like `a*b+c` can't hide even a same-machine copy — best case ~29% faster than Spire, worst case 11x
-*slower*), and **deep chains** (`chain` needs depth in the tens before the device pulls ahead; the
-depth sweep shows OpenCL flat from depth 1 to 128 while JVM scales linearly).
+OpenCL wins when three things line up: a **large array** (below ~10^6 elements, launch overhead
+dominates and the JVM wins outright), **heavy math** (cheap formulas like `a*b+c` can be up to 11x
+*slower* on the GPU), and **enough chained work per element** (a single FMA isn't enough to hide a
+transfer; tens of chained steps are). Hit all three and the win is an order of magnitude or more —
+up to **~195x** for `heavy`, **~688x** for the 4x-heavier `veryHeavy`. Miss them and OpenCL can lose
+outright. This is a compute accelerator for compute-bound work, not a blanket "GPU makes everything
+faster" claim — see the tables below for exactly where the line sits.
 
-Where all three line up — large N, compute-bound (`heavy`: `sin`/`exp`/`sqrt`) — the device wins by
-an order of magnitude or more: ~195x at 10^7 elements, ~27x at 10^6. That is the library's actual
-niche, not a general "GPU makes everything faster" claim.
+<!-- BENCHMARK_SOURCE -->
 
-`veryHeavy` composes `heavy`'s transcendentals 4x, at the same array traffic
-(`bench/results/2026-08-24-170344.json`, quick single-fork run). At 10^7 elements the win grows to
-**~688x**; at 10^4 elements, where `heavy` itself still lost, OpenCL now wins **~6.1x**. The
-small-array floor moves with arithmetic intensity, not just with size. Full table in
-`bench/results/README.md`.
+## Benchmark Results
 
-<!-- BENCHMARK_RESULTS -->
+### Elementwise, 10^7 floats
 
-## Benchmarking Notes
+Purpose: cheapest possible math, so transfer/launch cost is not hidden by compute. Shows the worst
+case for OpenCL.
 
-Run correctness first. Timings are meaningless if the implementations do not agree:
+Tested formula: `elementwise(a, b, c) = a*b + c`.
 
-```bash
-./mill bench.test
-```
+<!-- BENCHMARK_ELEMENTWISE_TABLE -->
 
-Then run JMH:
+Resident arrays avoid per-launch input upload. Mapped output removes the readback copy on this
+unified-memory machine.
 
-```bash
-./mill bench.runJmh GeneratorBench
-./mill bench.runJmh -f 1 -wi 2 -i 3 GeneratorBench
-```
+### Heavy math, 10^7 floats
 
-Record and compare history:
+Purpose: expensive math (sin/exp/sqrt), same data size as elementwise. Shows the library's actual
+sweet spot.
 
-```bash
-./mill bench.record -f 1 -wi 2 -i 3 GeneratorBench
-./mill bench.history
-./mill bench.compare
-```
+Tested formula: `heavy(x, a) = sqrt(exp(sin(x*a))^2 + sin(x*a)^2)`.
 
-Reports are written to `bench/results/<timestamp>.json`.
+<!-- BENCHMARK_HEAVY_TABLE -->
 
-Small arrays mostly measure launch latency. Larger arrays show transfer cost and device throughput:
+The GPU wins clearly once the expression has enough arithmetic to amortize launch and transfer.
 
-| row | shape |
-|---|---|
-| generator | values derived from `Expr.Index`; no input array upload |
-| packed params | host arrays packed and uploaded every launch |
-| device inputs | arrays uploaded with `writeInput`, then reused across launches |
-| mapped output | device inputs plus `renderBatchMappedUnsafe` to avoid the readback copy |
+### Generator, 10^7 floats
 
-Use `./mill bench.report` on a recorded run for rates. Use `./mill bench.precision` to check OpenCL
-math accuracy on the current device.
+Purpose: same `chain`/`heavy` math, but no array upload at all — isolates pure compute cost from
+transfer cost.
+
+Tested formulas: `chain(x, a, b, depth) = acc = x; repeat depth times: acc = acc*a + b` (depth 8
+here) and `heavy(x, a) = sqrt(exp(sin(x*a))^2 + sin(x*a)^2)`.
+
+<!-- BENCHMARK_GENERATOR_TABLE -->
+
+Generator kernels derive values from `Expr.Index`; there is no input array upload.
+
+### Generator, `veryHeavy` (sin/exp/sqrt composed 4x)
+
+`heavy`'s body run 4 times over (`Bench.VeryHeavyDepth`), same traffic as `heavy`, 4x the
+arithmetic. Single-fork quick run, not the 3-fork config the rest of this page uses.
+
+Purpose: check if the OpenCL win keeps growing when compute gets heavier still, at the same array
+size.
+
+Tested formula: `veryHeavy(x, a) = heavy(x, a)` composed 4x (sin/exp/sqrt repeated 4 times).
+
+<!-- BENCHMARK_VERYHEAVY_TABLE -->
+
+Device time barely moves between `heavy` and `veryHeavy`; CPU time scales with the added
+arithmetic, so the win grows with arithmetic intensity rather than staying fixed.
+
+### Depth sweep, 10^6 floats
+
+Purpose: find how many chained multiply-adds it takes before OpenCL beats the JVM.
+
+Tested formula: `chain(x, a, b, depth) = acc = x; repeat depth times: acc = acc*a + b`.
+
+<!-- BENCHMARK_DEPTHSWEEP_TABLE -->
+
+The OpenCL row is nearly flat: transfer plus launch dominates, while extra multiply-add levels are
+cheap on the device.
+
+### Host-side phase split, 10^7 floats
+
+Purpose: see where OpenCL time actually goes — upload, kernel launch, or readback.
+
+Per-launch cost broken into uploading parameters to the device, the kernel launch itself, and
+reading the result back. `readback` is not device compute time: the upload and launch enqueue
+asynchronously, so almost all device time is absorbed there as the blocking wait.
+
+<!-- BENCHMARK_PHASES_TABLE -->
 
 ## What Each Row Actually Runs
 
@@ -126,34 +154,41 @@ formula, different backend" is enforced, not just asserted in a comment.
   generator-encoding `heavy` row is ~195x faster than the plain while loop at 10^7 elements, and
   even encoding B (packed params, the deliberately bad shape) is still ~9.7x faster. The case where
   OpenCL is *not* much faster is the cheap, memory-bound `elementwise` workload (`a*b+c`) compared
-  against the fast JVM rows (Spire/plain), not `heavy` — see the percent table below.
+  against the fast JVM rows (Spire/plain) — see the "vs Spire" column in the Elementwise table above.
 
-### GPU vs. CPU win, in percent
+## Benchmarking Notes
 
-`Nx faster/slower` reads fine for order-of-magnitude gaps but is a bad unit close to parity — "1.4x
-faster" and "40% faster" are the same fact stated two ways, and percent is the more legible one when
-the two numbers are close. So: percent where the comparison is near 1x, `Nx` (as in the generated
-results table above) where it's a large multiple and a percent would just be an ugly four-digit
-number. Both are the *same underlying numbers* from `bench/results/2026-08-15-apple-m3-max.json`,
-just two units for two shapes of gap.
+Run correctness first. Timings are meaningless if the implementations do not agree:
 
-**Elementwise `a*b+c`, 10^7 floats — near parity, percent is the useful unit:**
+```bash
+./mill bench.test
+```
 
-| row | vs Spire on JVM (1523 us) |
+Then run JMH:
+
+```bash
+./mill bench.runJmh GeneratorBench
+./mill bench.runJmh -f 1 -wi 2 -i 3 GeneratorBench
+```
+
+Record and compare history:
+
+```bash
+./mill bench.record -f 1 -wi 2 -i 3 GeneratorBench
+./mill bench.history
+./mill bench.compare
+```
+
+Reports are written to `bench/results/<timestamp>.json`.
+
+Small arrays mostly measure launch latency. Larger arrays show transfer cost and device throughput:
+
+| row | shape |
 |---|---|
-| OpenCL, resident arrays + mapped output (1085 us) | **29% less time** (faster) |
-| plain while loop (1570 us) | 3% more time |
-| OpenCL, resident arrays (1923 us) | 26% more time |
-| Breeze `DenseVector` (4250 us) | 179% more time |
+| generator | values derived from `Expr.Index`; no input array upload |
+| packed params | host arrays packed and uploaded every launch |
+| device inputs | arrays uploaded with `writeInput`, then reused across launches |
+| mapped output | device inputs plus `renderBatchMappedUnsafe` to avoid the readback copy |
 
-**Order-of-magnitude gaps — kept as `Nx`, not percent, on purpose:**
-
-| workload | OpenCL row | vs plain while loop |
-|---|---|---|
-| `chain` depth 8 (generator) | 1752 us | ~12.5x faster |
-| `heavy` (generator) | 2076 us | ~195x faster |
-| `heavy` (encoding C, resident arrays) | 3573 us | ~31x faster |
-| `heavy` (encoding B, packed params) | 11413 us | ~9.7x faster |
-
-Converting the last row to percent would read "870% faster" — technically correct, harder to parse
-at a glance than "9.7x," which is why the generated table above sticks to `Nx` there.
+Use `./mill bench.report` on a recorded run for rates. Use `./mill bench.precision` to check OpenCL
+math accuracy on the current device.
