@@ -37,7 +37,7 @@ jobs:
           clinfo --list
 
       - name: Report what the device actually supports
-        run: ./mill spireOpencl.runMain io.github.mercurievv.spireopencl.opencl.DeviceProbe
+        run: ./mill spireOpencl.runMain io.github.mercurievv.spireopencl.opencl.DeviceProbe || true
         env:
           POCL_KERNEL_CACHE: '0'
 
