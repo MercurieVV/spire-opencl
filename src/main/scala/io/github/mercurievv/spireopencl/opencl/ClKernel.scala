@@ -135,6 +135,23 @@ trait Kernel[F[_]]:
     onPhase: (String, Long) => Unit = (_, _) => (),
   ): Int
 
+  /** [[renderBatchPackedUnsafe]] enqueued rather than waited on: the packed counterpart of [[enqueueBatchUnsafe]].
+    *
+    * Same packed layout and same validation; only the readback is the caller's, through [[enqueueReadSlotUnsafe]] and [[finishUnsafe]]. It exists for
+    * the caller that has several kernels to drive per round: launching each with a blocking entry point pays a host round trip per kernel, and
+    * overlapping those with host threads only hides the round trips rather than removing them. Enqueue every kernel, enqueue every readback, stop
+    * once.
+    *
+    * A `batchSize` of zero enqueues nothing at all — unlike [[renderBatchPackedUnsafe]], which zero-fills the destination it was given, because here
+    * there is no destination to fill. The slot comes back holding zero valid floats, so a subsequent read of it copies nothing.
+    */
+  def enqueueBatchPackedUnsafe(
+    uniforms: Map[String, Float],
+    params: Array[Float],
+    batchSize: Int,
+    onPhase: (String, Long) => Unit = (_, _) => (),
+  ): Int
+
   /** Blocks until everything enqueued has finished. */
   def finishUnsafe(): Unit
 
@@ -525,6 +542,14 @@ object ClKernel:
 
       /** Which slot the next launch writes. Rotates, so `outputSlots` launches can be in flight before one overwrites another. */
       private val nextSlot = new java.util.concurrent.atomic.AtomicInteger(0)
+
+      /** How many floats of each slot the launch that wrote it actually filled.
+        *
+        * A slot's buffer is allocated for the largest batch the kernel was compiled for, but a launch fills only what its own batch produced — `size`
+        * for a reduced kernel whatever the batch, `size * n` otherwise. Reading the buffer's full extent would therefore hand the caller whatever the
+        * allocation happened to hold beyond that, so a deferred read has to be told what the launch it is collecting actually wrote.
+        */
+      private val slotFloats: Array[Int] = new Array(slots)
       val reduced: Boolean = formula.isReduced
 
       /** Inputs not yet written. An unwritten array reads as zeros, which is a silent wrong answer rather than a loud one — so the first launch
@@ -551,6 +576,29 @@ object ClKernel:
       ): Int =
         launch(uniforms, batch.size, staging => fillFromMaps(batch, staging), None, onPhase)
 
+      def enqueueBatchPackedUnsafe(
+        uniforms: Map[String, Float],
+        params: Array[Float],
+        batchSize: Int,
+        onPhase: (String, Long) => Unit = (_, _) => (),
+      ): Int =
+        val needed = batchSize * elementParams.size
+        if params.length < needed then
+          throw new IllegalArgumentException(s"packed parameters are ${params.length} floats, need $needed for $batchSize elements")
+        else
+          launch(
+            uniforms,
+            batchSize,
+            staging => {
+              var i = 0
+              while i < needed do
+                staging.put(i, params(i))
+                i += 1
+            },
+            None,
+            onPhase,
+          )
+
       def finishUnsafe(): Unit =
         clFinish(queue)
         ()
@@ -563,7 +611,7 @@ object ClKernel:
         if slot < 0 || slot >= slots then throw new IllegalArgumentException(s"slot $slot is outside the compiled range 0..${slots - 1}")
         else if !out.isDirect then throw new IllegalArgumentException("output buffer must be direct: JOCL cannot take a pointer into the JVM heap")
         else
-          val floats = math.min(out.remaining, size * maxBatchSize)
+          val floats = math.min(out.remaining, slotFloats(slot))
           clEnqueueReadBuffer(
             queue,
             outBuffers(slot),
@@ -775,7 +823,9 @@ object ClKernel:
         val slot = if slots == 1 then 0 else math.floorMod(nextSlot.getAndIncrement(), slots)
         val outBuffer = outBuffers(slot)
         val staging = stagingBuffers(slot)
-        if n == 0 then dest.foreach(_.zeroFill())
+        if n == 0 then
+          slotFloats(slot) = 0
+          dest.foreach(_.zeroFill())
         else if n > maxBatchSize then throw new IllegalArgumentException(s"$n batch elements exceed the compiled maximum of $maxBatchSize")
         else if pendingInputs > 0 then
           throw new IllegalStateException(
@@ -863,6 +913,7 @@ object ClKernel:
           // The side just written becomes the side the next launch reads.
           if stateNames.nonEmpty then readSide.set(writeSide)
           onPhase("launch", System.nanoTime())
+          slotFloats(slot) = outputFloats
           dest.foreach(_.receive(queue, outBuffer, outputFloats))
           onPhase("readback", System.nanoTime())
         slot

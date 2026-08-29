@@ -529,6 +529,70 @@ object KernelSpec extends SimpleIOSuite:
     }
   }
 
+  test("a packed batch enqueued and collected later is the same launch as one waited on") {
+    // The reason the enqueueing entry point exists is to let a caller drive several kernels per round without paying a
+    // host round trip each, so what it must not do is compute anything different from the blocking one.
+    val batch = Seq(Map("freq" -> 3.0f, "gate" -> 0.4f), Map("freq" -> 5.0f, "gate" -> 0.1f))
+    val packed = Array(3.0f, 0.4f, 5.0f, 0.1f)
+    ClKernel.compile[IO](formula, size, batch.size).use { kernel =>
+      IO {
+        def direct(n: Int) = java.nio.ByteBuffer
+          .allocateDirect(n * java.lang.Float.BYTES)
+          .order(java.nio.ByteOrder.nativeOrder)
+          .asFloatBuffer
+
+        val waited = direct(size * batch.size)
+        kernel.renderBatchPackedUnsafe(uniforms, packed, batch.size, waited)
+
+        val deferred = direct(size * batch.size)
+        val slot = kernel.enqueueBatchPackedUnsafe(uniforms, packed, batch.size)
+        kernel.enqueueReadSlotUnsafe(slot, deferred)
+        kernel.finishUnsafe()
+
+        val a = Array.tabulate(size * batch.size)(waited.get)
+        val b = Array.tabulate(size * batch.size)(deferred.get)
+        expect(b.sameElements(a), "the enqueued packed launch differs from the waited-on one") &&
+        expect(
+          a.exists(_ != 0.0f),
+          "the formula produced silence, so the comparison proves nothing",
+        )
+      }
+    }
+  }
+
+  test("a deferred read collects only what its launch wrote, not the slot's whole allocation") {
+    /* A slot is allocated for the largest batch the kernel was compiled for, so a launch of fewer elements leaves the
+     * rest of it holding whatever was there before. A caller whose destination is a slice of a larger buffer — an
+     * audio host's output plane, say — would otherwise have the remainder written over it. */
+    ClKernel.compile[IO](formula, size, 4).use { kernel =>
+      IO {
+        val guard = -7.0f
+        val out = java.nio.ByteBuffer
+          .allocateDirect(size * 4 * java.lang.Float.BYTES)
+          .order(java.nio.ByteOrder.nativeOrder)
+          .asFloatBuffer
+        (0 until size * 4).foreach { i =>
+          val _ = out.put(i, guard)
+        }
+
+        // One element, into a destination with room for four.
+        val slot = kernel.enqueueBatchPackedUnsafe(uniforms, Array(3.0f, 0.4f), 1)
+        kernel.enqueueReadSlotUnsafe(slot, out)
+        kernel.finishUnsafe()
+
+        val untouched = (size until size * 4).map(out.get)
+        expect(
+          untouched.forall(_ == guard),
+          "the read ran past the floats its launch actually wrote",
+        ) &&
+        expect(
+          (0 until size).map(out.get).exists(_ != guard),
+          "nothing was written at all, so this proves nothing",
+        )
+      }
+    }
+  }
+
   test("a packed batch too short for its element count is refused") {
     ClKernel.compile[IO](formula, size, 2).use { kernel =>
       IO {
