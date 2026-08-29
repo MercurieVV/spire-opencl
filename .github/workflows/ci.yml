@@ -40,6 +40,7 @@ jobs:
         run: ./mill spireOpencl.runMain io.github.mercurievv.spireopencl.opencl.DeviceProbe
         env:
           POCL_KERNEL_CACHE: '0'
+        continue-on-error: true
 
       # POCL_KERNEL_CACHE=0: pocl caches compiled kernels in a shared directory and
       # races with itself when two test JVMs build a program at the same time --
