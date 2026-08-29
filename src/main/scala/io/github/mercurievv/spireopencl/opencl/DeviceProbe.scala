@@ -123,12 +123,18 @@ object DeviceProbe:
     }
 
   def main(args: Array[String]): Unit =
-    setExceptionsEnabled(true)
-    val ps = platforms()
-    println(s"OpenCL platforms: ${ps.size}")
-    ps.foreach { p =>
-      println(s"platform      : ${platformString(p, CL_PLATFORM_NAME)} / ${platformString(p, CL_PLATFORM_VERSION)}")
-      val ds = devices(p)
-      if ds.isEmpty then println("  (no devices)")
-      else ds.foreach(describe(p, _))
-    }
+    try
+      setExceptionsEnabled(true)
+      val ps = platforms()
+      println(s"OpenCL platforms: ${ps.size}")
+      ps.foreach { p =>
+        println(s"platform      : ${platformString(p, CL_PLATFORM_NAME)} / ${platformString(p, CL_PLATFORM_VERSION)}")
+        val ds = devices(p)
+        if ds.isEmpty then println("  (no devices)")
+        else ds.foreach(describe(p, _))
+      }
+    catch
+      case e: Throwable =>
+        System.err.println(s"Error: ${e.getMessage}")
+        e.printStackTrace(System.err)
+        System.exit(1)
